@@ -4,11 +4,17 @@
 #include <emscripten/html5.h>
 #include <webgpu/webgpu_cpp.h>
 #include <magic_enum.hpp>
+#include <imgui.h>
+#include <backends/imgui_impl_wgpu.h>
+#include <backends/imgui_impl_glfw.h>
+#include <GLFW/glfw3.h>
 
 using uint32_t = unsigned int;
 using uint16_t = unsigned short;
 
-constexpr wgpu::TextureFormat SWAPCHAIN_FORMAT{ wgpu::TextureFormat::BGRA8Unorm };
+constexpr uint32_t WIDTH = 1280;
+constexpr uint32_t HEIGHT = 720;
+
 
 static char const triangle_vert_wgsl[] = R"(
     struct VertexIn {
@@ -45,6 +51,7 @@ static char const triangle_frag_wgsl[] = R"(
     }
 )";
 
+GLFWwindow* g_window;
 wgpu::Adapter g_adapter;
 wgpu::Instance g_instance;
 wgpu::Device g_device;
@@ -56,6 +63,9 @@ wgpu::Buffer g_vertBuf; // vertex buffer with triangle position and colours
 wgpu::Buffer g_indxBuf; // index buffer
 wgpu::Buffer g_uRotBuf; // uniform buffer (containing the rotation angle)
 wgpu::BindGroup g_bindGroup;
+
+wgpu::TextureFormat swapChainFormat{ wgpu::TextureFormat::BGRA8Unorm };
+constexpr wgpu::TextureFormat DEPTH_STENCIL_FORMAT{ wgpu::TextureFormat::Undefined };
 
 float rotDeg = 0.0f;
 
@@ -72,9 +82,9 @@ wgpu::SwapChain CreateSwapChain()
 
     wgpu::SwapChainDescriptor swapDesc{};
     swapDesc.usage = wgpu::TextureUsage::RenderAttachment;
-    swapDesc.format = SWAPCHAIN_FORMAT;
-    swapDesc.width = 800;
-    swapDesc.height = 450;
+    swapDesc.format = swapChainFormat = surface.GetPreferredFormat(g_adapter);
+    swapDesc.width = WIDTH;
+    swapDesc.height = HEIGHT;
     swapDesc.presentMode = wgpu::PresentMode::Fifo;
 
     return g_device.CreateSwapChain(surface, &swapDesc);
@@ -87,7 +97,7 @@ wgpu::Buffer CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsag
     desc.size = size;
     wgpu::Buffer buffer = g_device.CreateBuffer(&desc);
     g_queue.WriteBuffer(buffer, 0, data, size);
-
+    
     return buffer;
 }
 
@@ -147,7 +157,7 @@ void CreatePipelineAndBuffers()
     blend.alpha.dstFactor = wgpu::BlendFactor::One;
 
     wgpu::ColorTargetState colorTarget{};
-    colorTarget.format = SWAPCHAIN_FORMAT;
+    colorTarget.format = swapChainFormat;
     colorTarget.blend = &blend;
     colorTarget.writeMask = wgpu::ColorWriteMask::All;
 
@@ -210,11 +220,23 @@ void CreatePipelineAndBuffers()
 
 void Render(double time)
 {
+    glfwPollEvents();
+
+    ImGui_ImplWGPU_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    bool show = true;
+    ImGui::ShowDemoWindow(&show);
+
+
+    ImGui::Render();
+
     wgpu::TextureView backBufView = g_swapChain.GetCurrentTextureView();
 
     wgpu::RenderPassColorAttachment colorDesc{};
     colorDesc.view = backBufView;
-    colorDesc.depthSlice = wgpu::kDepthSliceUndefined;
+    colorDesc.resolveTarget = nullptr;
     colorDesc.loadOp = wgpu::LoadOp::Clear;
     colorDesc.storeOp = wgpu::StoreOp::Store;
     colorDesc.clearValue.r = 0.3f;
@@ -222,11 +244,18 @@ void Render(double time)
     colorDesc.clearValue.b = 0.3f;
     colorDesc.clearValue.a = 1.0f;
 
+
+    wgpu::CommandEncoderDescriptor ceDesc;
+    ceDesc.label = "Command encoder";
+
+    wgpu::CommandEncoder encoder = g_device.CreateCommandEncoder(&ceDesc);
+
     wgpu::RenderPassDescriptor renderPass{};
+    renderPass.label = "Main render pass";
     renderPass.colorAttachmentCount = 1;
     renderPass.colorAttachments = &colorDesc;
+    renderPass.depthStencilAttachment = nullptr;
 
-    wgpu::CommandEncoder encoder = g_device.CreateCommandEncoder(nullptr);
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPass);
 
     rotDeg += 0.1f;
@@ -241,7 +270,27 @@ void Render(double time)
 
     pass.End();
 
+
+    wgpu::RenderPassColorAttachment imguiColorDesc{};
+    imguiColorDesc.view = backBufView;
+    imguiColorDesc.loadOp = wgpu::LoadOp::Load;
+    imguiColorDesc.storeOp = wgpu::StoreOp::Store;
+
+    wgpu::RenderPassDescriptor imguiPassDesc{};
+    imguiPassDesc.label = "Main render pass";
+    imguiPassDesc.colorAttachmentCount = 1;
+    imguiPassDesc.colorAttachments = &imguiColorDesc;
+    imguiPassDesc.depthStencilAttachment = nullptr;
+
+
+    wgpu::RenderPassEncoder imguiPass = encoder.BeginRenderPass(&imguiPassDesc);
+
+    ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), imguiPass.Get());
+
+    imguiPass.End();
+
     wgpu::CommandBuffer commands = encoder.Finish(nullptr);
+    
 
     g_queue.Submit(1, &commands);
 }
@@ -264,8 +313,43 @@ constexpr std::string_view conv_enum_str(From value)
     return magic_enum::enum_name(conv_enum<To>(value));
 }
 
+bool SetupImGui()
+{
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForOther(g_window, true);
+    ImGui_ImplGlfw_InstallEmscriptenCanvasResizeCallback("#canvas");
+
+    ImGui_ImplWGPU_InitInfo imguiInitInfo{};
+    imguiInitInfo.DepthStencilFormat = conv_enum<WGPUTextureFormat>(DEPTH_STENCIL_FORMAT);
+    imguiInitInfo.Device = g_device.Get();
+    imguiInitInfo.NumFramesInFlight = 3;
+    imguiInitInfo.PipelineMultisampleState = { nullptr, 1,  0xFF'FF'FF'FF, false };
+    imguiInitInfo.RenderTargetFormat = conv_enum<WGPUTextureFormat>(swapChainFormat);
+    ImGui_ImplWGPU_Init(&imguiInitInfo);
+    ImGui_ImplWGPU_CreateDeviceObjects();
+
+    // Prevent opening .ini with emscripten file system.
+    io.IniFilename = nullptr;
+
+    return true;
+}
+
 int main(int argc, char** argv)
 {
+    glfwInit();
+
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    g_window = glfwCreateWindow(WIDTH, HEIGHT, "window title", nullptr, nullptr);
+
+    glfwShowWindow(g_window);
+
     g_instance = wgpu::CreateInstance(nullptr);
 
     wgpu::RequestAdapterOptions options{};
@@ -311,16 +395,21 @@ int main(int argc, char** argv)
                 std::cout << "Queue work finished with status: " << conv_enum_str<wgpu::QueueWorkDoneStatus>(status) << std::endl;
             }, nullptr);
 
-
             g_swapChain = CreateSwapChain();
             CreatePipelineAndBuffers();
 
+            if(!SetupImGui())
+            {
+                std::cout << "Failed initalizing ImGui" << std::endl;
+                return;
+            }
+
             // Begin render loop.
             emscripten_request_animation_frame_loop(em_render, nullptr);
+
         }, nullptr);
 
     }, nullptr);
-
 
     return 0;
 }

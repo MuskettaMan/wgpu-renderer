@@ -36,12 +36,12 @@
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(SolutionDir)lib\magic_enum\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)lib\magic_enum\include;$(ProjectDir)lib\imgui</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>
       </AdditionalDependencies>
-      <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 -s USE_GLFW=3  -sASYNCIFY %(AdditionalOptions)</AdditionalOptions>
       <EnableMemoryGrowth>true</EnableMemoryGrowth>
     </Link>
   </ItemDefinitionGroup>
@@ -49,14 +49,21 @@
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(SolutionDir)lib\magic_enum\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)lib\magic_enum\include;$(ProjectDir)lib\imgui</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 -s USE_GLFW=3  -sASYNCIFY %(AdditionalOptions)</AdditionalOptions>
       <EnableMemoryGrowth>true</EnableMemoryGrowth>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="lib\imgui\backends\imgui_impl_glfw.cpp" />
+    <ClCompile Include="lib\imgui\backends\imgui_impl_wgpu.cpp" />
+    <ClCompile Include="lib\imgui\imgui.cpp" />
+    <ClCompile Include="lib\imgui\imgui_demo.cpp" />
+    <ClCompile Include="lib\imgui\imgui_draw.cpp" />
+    <ClCompile Include="lib\imgui\imgui_tables.cpp" />
+    <ClCompile Include="lib\imgui\imgui_widgets.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
