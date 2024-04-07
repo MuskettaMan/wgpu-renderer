@@ -35,19 +35,25 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Emscripten'">
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>$(SolutionDir)lib\magic_enum\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>
       </AdditionalDependencies>
       <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 %(AdditionalOptions)</AdditionalOptions>
+      <EnableMemoryGrowth>true</EnableMemoryGrowth>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>$(SolutionDir)lib\magic_enum\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 %(AdditionalOptions)</AdditionalOptions>
+      <EnableMemoryGrowth>true</EnableMemoryGrowth>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

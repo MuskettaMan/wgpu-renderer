@@ -3,6 +3,7 @@
 #include <emscripten/html5_webgpu.h>
 #include <emscripten/html5.h>
 #include <webgpu/webgpu_cpp.h>
+#include <magic_enum.hpp>
 
 using uint32_t = unsigned int;
 using uint16_t = unsigned short;
@@ -44,16 +45,17 @@ static char const triangle_frag_wgsl[] = R"(
     }
 )";
 
-wgpu::Instance instance;
-wgpu::Device device;
-wgpu::Queue queue;
-wgpu::SwapChain swapChain;
+wgpu::Adapter g_adapter;
+wgpu::Instance g_instance;
+wgpu::Device g_device;
+wgpu::Queue g_queue;
+wgpu::SwapChain g_swapChain;
 
-wgpu::RenderPipeline pipeline;
-wgpu::Buffer vertBuf; // vertex buffer with triangle position and colours
-wgpu::Buffer indxBuf; // index buffer
-wgpu::Buffer uRotBuf; // uniform buffer (containing the rotation angle)
-wgpu::BindGroup bindGroup;
+wgpu::RenderPipeline g_pipeline;
+wgpu::Buffer g_vertBuf; // vertex buffer with triangle position and colours
+wgpu::Buffer g_indxBuf; // index buffer
+wgpu::Buffer g_uRotBuf; // uniform buffer (containing the rotation angle)
+wgpu::BindGroup g_bindGroup;
 
 float rotDeg = 0.0f;
 
@@ -66,7 +68,7 @@ wgpu::SwapChain CreateSwapChain()
     wgpu::SurfaceDescriptor surfDesc{};
     surfDesc.nextInChain = reinterpret_cast<wgpu::ChainedStruct*>(&canvasDesc);
     
-    wgpu::Surface surface = instance.CreateSurface(&surfDesc);
+    wgpu::Surface surface = g_instance.CreateSurface(&surfDesc);
 
     wgpu::SwapChainDescriptor swapDesc{};
     swapDesc.usage = wgpu::TextureUsage::RenderAttachment;
@@ -75,7 +77,7 @@ wgpu::SwapChain CreateSwapChain()
     swapDesc.height = 450;
     swapDesc.presentMode = wgpu::PresentMode::Fifo;
 
-    return device.CreateSwapChain(surface, &swapDesc);
+    return g_device.CreateSwapChain(surface, &swapDesc);
 }
 
 wgpu::Buffer CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage)
@@ -83,8 +85,8 @@ wgpu::Buffer CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsag
     wgpu::BufferDescriptor desc{};
     desc.usage = usage | wgpu::BufferUsage::CopyDst;
     desc.size = size;
-    wgpu::Buffer buffer = device.CreateBuffer(&desc);
-    queue.WriteBuffer(buffer, 0, data, size);
+    wgpu::Buffer buffer = g_device.CreateBuffer(&desc);
+    g_queue.WriteBuffer(buffer, 0, data, size);
 
     return buffer;
 }
@@ -97,7 +99,7 @@ wgpu::ShaderModule CreateShader(const char* const code, const char* label = null
     wgpu::ShaderModuleDescriptor desc{};
     desc.nextInChain = reinterpret_cast<wgpu::ChainedStruct*>(&wgsl);
     desc.label = label;
-    return device.CreateShaderModule(&desc);
+    return g_device.CreateShaderModule(&desc);
 }
 
 void CreatePipelineAndBuffers()
@@ -116,12 +118,12 @@ void CreatePipelineAndBuffers()
     wgpu::BindGroupLayoutDescriptor bglDesc{};
     bglDesc.entryCount = 1;
     bglDesc.entries = &bglEntry;
-    wgpu::BindGroupLayout bindGroupLayout = device.CreateBindGroupLayout(&bglDesc);
+    wgpu::BindGroupLayout bindGroupLayout = g_device.CreateBindGroupLayout(&bglDesc);
 
     wgpu::PipelineLayoutDescriptor layoutDesc{};
     layoutDesc.bindGroupLayoutCount = 1;
     layoutDesc.bindGroupLayouts = &bindGroupLayout;
-    wgpu::PipelineLayout pipelineLayout = device.CreatePipelineLayout(&layoutDesc);
+    wgpu::PipelineLayout pipelineLayout = g_device.CreatePipelineLayout(&layoutDesc);
 
     wgpu::VertexAttribute vertAttrs[2] = {};
     vertAttrs[0].format = wgpu::VertexFormat::Float32x2;
@@ -174,7 +176,7 @@ void CreatePipelineAndBuffers()
     rpDesc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
     rpDesc.primitive.stripIndexFormat = wgpu::IndexFormat::Undefined;
 
-    pipeline = device.CreateRenderPipeline(&rpDesc);
+    g_pipeline = g_device.CreateRenderPipeline(&rpDesc);
 
     // create the buffers (x, y, r, g, b)
     float const vertData[] = {
@@ -187,14 +189,14 @@ void CreatePipelineAndBuffers()
         0 // padding (better way of doing this?)
     };
 
-    vertBuf = CreateBuffer(vertData, sizeof(vertData), wgpu::BufferUsage::Vertex);
-    indxBuf = CreateBuffer(indxData, sizeof(indxData), wgpu::BufferUsage::Index);
+    g_vertBuf = CreateBuffer(vertData, sizeof(vertData), wgpu::BufferUsage::Vertex);
+    g_indxBuf = CreateBuffer(indxData, sizeof(indxData), wgpu::BufferUsage::Index);
 
-    uRotBuf = CreateBuffer(&rotDeg, sizeof(rotDeg), wgpu::BufferUsage::Uniform);
+    g_uRotBuf = CreateBuffer(&rotDeg, sizeof(rotDeg), wgpu::BufferUsage::Uniform);
 
     wgpu::BindGroupEntry bgEntry{};
     bgEntry.binding = 0;
-    bgEntry.buffer = uRotBuf;
+    bgEntry.buffer = g_uRotBuf;
     bgEntry.offset = 0;
     bgEntry.size = sizeof(rotDeg);
 
@@ -203,12 +205,12 @@ void CreatePipelineAndBuffers()
     bgDesc.entryCount = 1;
     bgDesc.entries = &bgEntry;
 
-    bindGroup = device.CreateBindGroup(&bgDesc);
+    g_bindGroup = g_device.CreateBindGroup(&bgDesc);
 }
 
 void Render(double time)
 {
-    wgpu::TextureView backBufView = swapChain.GetCurrentTextureView();
+    wgpu::TextureView backBufView = g_swapChain.GetCurrentTextureView();
 
     wgpu::RenderPassColorAttachment colorDesc{};
     colorDesc.view = backBufView;
@@ -224,16 +226,16 @@ void Render(double time)
     renderPass.colorAttachmentCount = 1;
     renderPass.colorAttachments = &colorDesc;
 
-    wgpu::CommandEncoder encoder = device.CreateCommandEncoder(nullptr);
+    wgpu::CommandEncoder encoder = g_device.CreateCommandEncoder(nullptr);
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPass);
 
     rotDeg += 0.1f;
-    queue.WriteBuffer(uRotBuf, 0, &rotDeg, sizeof(rotDeg));
+    g_queue.WriteBuffer(g_uRotBuf, 0, &rotDeg, sizeof(rotDeg));
 
-    pass.SetPipeline(pipeline);
-    pass.SetBindGroup(0, bindGroup, 0, 0);
-    pass.SetVertexBuffer(0, vertBuf, 0, wgpu::kWholeSize);
-    pass.SetIndexBuffer(indxBuf, wgpu::IndexFormat::Uint16, 0, wgpu::kWholeSize);
+    pass.SetPipeline(g_pipeline);
+    pass.SetBindGroup(0, g_bindGroup, 0, 0);
+    pass.SetVertexBuffer(0, g_vertBuf, 0, wgpu::kWholeSize);
+    pass.SetIndexBuffer(g_indxBuf, wgpu::IndexFormat::Uint16, 0, wgpu::kWholeSize);
 
     pass.DrawIndexed(3, 1, 0, 0, 0);
 
@@ -241,9 +243,7 @@ void Render(double time)
 
     wgpu::CommandBuffer commands = encoder.Finish(nullptr);
 
-    queue.Submit(1, &commands);
-
-    swapChain.Present();
+    g_queue.Submit(1, &commands);
 }
 
 EM_BOOL em_render(double time, void* userData)
@@ -252,59 +252,75 @@ EM_BOOL em_render(double time, void* userData)
     return true;
 }
 
-EM_JS(void, glue_preint, (), {
-    var entry = __glue_main_;
-    if (entry) {
-        /*
-         * None of the WebGPU properties appear to survive Closure, including
-         * Emscripten's own `preinitializedWebGPUDevice` (which from looking at
-         *`library_html5` is probably designed to be inited in script before
-         * loading the Wasm).
-         */
-        if (navigator["gpu"]) {
-            navigator["gpu"]["requestAdapter"]().then(function (adapter) {
-                adapter["requestDevice"]().then( function (device) {
-                    Module["preinitializedWebGPUDevice"] = device;
-                    entry();
-                });
-            }, function () {
-                console.error("No WebGPU adapter; not starting");
-            });
-        } else {
-            console.error("No support for WebGPU; not starting");
+template <typename To, typename From>
+constexpr To conv_enum(From value)
+{
+    return *reinterpret_cast<To*>(&value);
+}
+
+template <typename To, typename From>
+constexpr std::string_view conv_enum_str(From value)
+{
+    return magic_enum::enum_name(conv_enum<To>(value));
+}
+
+int main(int argc, char** argv)
+{
+    g_instance = wgpu::CreateInstance(nullptr);
+
+    wgpu::RequestAdapterOptions options{};
+    options.powerPreference = wgpu::PowerPreference::HighPerformance;
+    g_instance.RequestAdapter(&options, [](WGPURequestAdapterStatus status, WGPUAdapter adapter, char const* message, void* userdata)
+    {
+        if(status != WGPURequestAdapterStatus_Success)
+        {
+            std::cout << "Failed requesting adapter: " << message << std::endl;
+            return;
         }
-    } else {
-        console.error("Entry point not found; unable to start");
-    }
-});
 
-#ifndef KEEP_IN_MODULE
-#define KEEP_IN_MODULE extern "C" __attribute__((used, visibility("default")))
-#endif
+        g_adapter = wgpu::Adapter(adapter);
 
-int __main__(int argc, char* argv);
+        wgpu::DeviceDescriptor deviceDesc{};
+        deviceDesc.label = "Device";
+        deviceDesc.requiredFeatureCount = 0;
+        deviceDesc.requiredLimits = nullptr;
+        deviceDesc.nextInChain = nullptr;
+        deviceDesc.defaultQueue.nextInChain = nullptr;
+        deviceDesc.defaultQueue.label = "Default queue";
 
-KEEP_IN_MODULE void _glue_main_()
-{
-    __main__(0, nullptr);
-}
+        g_adapter.RequestDevice(&deviceDesc, [](WGPURequestDeviceStatus status, WGPUDeviceImpl* deviceHandle, char const* message, void* userdata)
+        {
+            if (status != WGPURequestDeviceStatus_Success)
+            {
+                std::cout << "Failed requesting device: " << message << std::endl;
+                return;
+            }
 
-int main() {
-    glue_preint();
+            g_device = wgpu::Device(deviceHandle);
+            g_device.SetUncapturedErrorCallback([](WGPUErrorType error, const char* message, void* userdata)
+            {
+                std::cout << "Uncaptured device error - error  type: " << conv_enum_str<wgpu::ErrorType>(error) << "\n";
+                if (message) std::cout << message;
+                std::cout << std::endl;
+            }, nullptr);
 
-    return 0;
-}
+            g_queue = g_device.GetQueue();
+            
+            g_queue.OnSubmittedWorkDone([](WGPUQueueWorkDoneStatus status, void* userdata)
+            {
+                std::cout << "Queue work finished with status: " << conv_enum_str<wgpu::QueueWorkDoneStatus>(status) << std::endl;
+            }, nullptr);
 
-int __main__(int argc, char* argv)
-{
-    instance = wgpu::CreateInstance(nullptr);
-    device = wgpu::Device(emscripten_webgpu_get_device());
-    queue = device.GetQueue();
-    swapChain = CreateSwapChain();
-    CreatePipelineAndBuffers();
 
-    // Begin render loop.
-    emscripten_request_animation_frame_loop(em_render, nullptr);
+            g_swapChain = CreateSwapChain();
+            CreatePipelineAndBuffers();
+
+            // Begin render loop.
+            emscripten_request_animation_frame_loop(em_render, nullptr);
+        }, nullptr);
+
+    }, nullptr);
+
 
     return 0;
 }
