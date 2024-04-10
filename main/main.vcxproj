@@ -32,16 +32,22 @@
   <ImportGroup Label="Shared">
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Emscripten'">
+    <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
+    <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Emscripten'">
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(ProjectDir)lib\magic_enum\include;$(ProjectDir)lib\imgui</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)lib\magic_enum\include;$(ProjectDir)lib\imgui</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>
       </AdditionalDependencies>
-      <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 -s USE_GLFW=3  -sASYNCIFY %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 -s USE_GLFW=3  -sASYNCIFY --embed-file assets --shell-file assets/shell.html</AdditionalOptions>
       <EnableMemoryGrowth>true</EnableMemoryGrowth>
     </Link>
   </ItemDefinitionGroup>
@@ -49,10 +55,10 @@
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(ProjectDir)lib\magic_enum\include;$(ProjectDir)lib\imgui</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)lib\magic_enum\include;$(ProjectDir)lib\imgui</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 -s USE_GLFW=3  -sASYNCIFY %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 -s USE_GLFW=3  -sASYNCIFY --embed-file assets</AdditionalOptions>
       <EnableMemoryGrowth>true</EnableMemoryGrowth>
     </Link>
   </ItemDefinitionGroup>
@@ -64,7 +70,14 @@
     <ClCompile Include="lib\imgui\imgui_draw.cpp" />
     <ClCompile Include="lib\imgui\imgui_tables.cpp" />
     <ClCompile Include="lib\imgui\imgui_widgets.cpp" />
-    <ClCompile Include="main.cpp" />
+    <ClCompile Include="source\main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\enum_util.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\frag.wgsl" />
+    <None Include="assets\vertex.wgsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
