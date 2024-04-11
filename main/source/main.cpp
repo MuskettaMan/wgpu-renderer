@@ -9,12 +9,31 @@
 #include <backends/imgui_impl_glfw.h>
 #include <GLFW/glfw3.h>
 #include "enum_util.hpp"
-#include <filesystem>
 #include <fstream>
+
+#include <glm.hpp>
+#include <ext.hpp>
 
 using uint32_t = unsigned int;
 using int32_t = int;
 using uint16_t = unsigned short;
+
+struct Common
+{
+    glm::mat4 proj;
+    glm::mat4 view;
+    glm::mat4 vp;
+    glm::vec3 color;
+    float time;
+    //float _padding[2];
+};
+
+struct Instance
+{
+    glm::mat4 model;
+    glm::vec3 color;
+    float _padding;
+};
 
 
 int32_t g_width = 1280;
@@ -34,9 +53,16 @@ wgpu::TextureView g_depthTextureView;
 wgpu::RenderPipeline g_pipeline;
 wgpu::Buffer g_vertBuf; // vertex buffer with triangle position and colours
 wgpu::Buffer g_indxBuf; // index buffer
+wgpu::Buffer g_commonBuf;
+wgpu::Buffer g_instanceBuf;
+wgpu::BindGroupLayout g_bgLayout;
+wgpu::BindGroup g_bindGroup;
 
 wgpu::TextureFormat swapChainFormat{ wgpu::TextureFormat::BGRA8Unorm };
 constexpr wgpu::TextureFormat DEPTH_STENCIL_FORMAT{ wgpu::TextureFormat::Depth24Plus };
+
+Common g_commonData;
+Instance g_instanceData;
 
 void CreateSwapChainAndRenderTarget()
 {
@@ -128,25 +154,77 @@ wgpu::ShaderModule CreateShader(const std::string& path, const char* label = nul
 
 void CreatePipelineAndBuffers()
 {
+    float near = 0.001f;
+    float far = 100.0f;
+    float ratio = g_width / static_cast<float>(g_height); // TODO: update on screen resize.
+    float focalLength = 2.0f;
+    float fov = 2 * glm::atan(1 / focalLength);
+
+    g_commonData.view = glm::lookAt(glm::vec3{ 0.0f, 2.0f, -3.0f }, glm::vec3{ 0.0f }, glm::vec3{ 0.0f, 1.0f, 0.0f });
+    g_commonData.proj = glm::perspective(fov, ratio, near, far);
+    g_commonData.vp = g_commonData.proj * g_commonData.view;
+    g_commonData.color = glm::vec3{ 1.0f, 0.5f, 0.5f };
+
+    g_instanceData.model = glm::identity<glm::mat4>();
+    g_instanceData.color = glm::vec3{ 0.5f, 1.0f, 0.5f };
+
+    g_commonBuf = CreateBuffer(&g_commonData, sizeof(g_commonData), wgpu::BufferUsage::Uniform, "Common uniform");
+    g_instanceBuf = CreateBuffer(&g_instanceData, sizeof(g_instanceData), wgpu::BufferUsage::Uniform, "Instance uniform");
+
+    wgpu::BindGroupLayoutEntry bgLayoutEntry[2]{};
+    bgLayoutEntry[0].binding = 0;
+    bgLayoutEntry[0].visibility = wgpu::ShaderStage::Vertex;
+    bgLayoutEntry[0].buffer.type = wgpu::BufferBindingType::Uniform;
+    bgLayoutEntry[0].buffer.minBindingSize = sizeof(g_commonData);
+
+    bgLayoutEntry[1].binding = 1;
+    bgLayoutEntry[1].visibility = wgpu::ShaderStage::Vertex;
+    bgLayoutEntry[1].buffer.type = wgpu::BufferBindingType::Uniform;
+    bgLayoutEntry[1].buffer.minBindingSize = sizeof(g_instanceData);
+
+    wgpu::BindGroupLayoutDescriptor bgLayoutDesc{};
+    bgLayoutDesc.label = "Default binding group layout";
+    bgLayoutDesc.entryCount = 2;
+    bgLayoutDesc.entries = bgLayoutEntry;
+    g_bgLayout = g_device.CreateBindGroupLayout(&bgLayoutDesc);
+
+    wgpu::BindGroupEntry bgEntry[2]{};
+    bgEntry[0].binding = 0;
+    bgEntry[0].buffer = g_commonBuf;
+    bgEntry[0].size = sizeof(g_commonData);
+
+    bgEntry[1].binding = 1;
+    bgEntry[1].buffer = g_instanceBuf;
+    bgEntry[1].size = sizeof(g_instanceData);
+
+    wgpu::BindGroupDescriptor bgDesc{};
+    bgDesc.layout = g_bgLayout;
+    bgDesc.entryCount = bgLayoutDesc.entryCount;
+    bgDesc.entries = bgEntry;
+    g_bindGroup = g_device.CreateBindGroup(&bgDesc);
+
     wgpu::ShaderModule vertModule = CreateShader("assets/vertex.wgsl", "Vertex shader");
     wgpu::ShaderModule fragModule = CreateShader("assets/frag.wgsl", "Fragment shader");
 
     wgpu::PipelineLayoutDescriptor layoutDesc{};
-    layoutDesc.bindGroupLayoutCount = 0;
+    layoutDesc.label = "Default pipeline layout";
+    layoutDesc.bindGroupLayoutCount = 1;
+    layoutDesc.bindGroupLayouts = &g_bgLayout;
     wgpu::PipelineLayout pipelineLayout = g_device.CreatePipelineLayout(&layoutDesc);
 
     wgpu::VertexAttribute vertAttrs[2] = {};
-    vertAttrs[0].format = wgpu::VertexFormat::Float32x2;
+    vertAttrs[0].format = wgpu::VertexFormat::Float32x3;
     vertAttrs[0].offset = 0;
     vertAttrs[0].shaderLocation = 0;
     vertAttrs[1].format = wgpu::VertexFormat::Float32x3;
-    vertAttrs[1].offset = sizeof(float) * 2;
+    vertAttrs[1].offset = sizeof(float) * 3;
     vertAttrs[1].shaderLocation = 1;
 
     wgpu::VertexBufferLayout vertexBufferLayout{};
-    vertexBufferLayout.arrayStride = sizeof(float) * 5;
+    vertexBufferLayout.arrayStride = sizeof(float) * 6;
     vertexBufferLayout.attributeCount = 2;
     vertexBufferLayout.attributes = vertAttrs;
+    vertexBufferLayout.stepMode = wgpu::VertexStepMode::Vertex;
 
     wgpu::BlendState blend{};
     blend.color.operation = wgpu::BlendOperation::Add;
@@ -166,6 +244,8 @@ void CreatePipelineAndBuffers()
     fragment.entryPoint = "main";
     fragment.targetCount = 1;
     fragment.targets = &colorTarget;
+    fragment.constantCount = 0;
+    fragment.constants = nullptr;
 
     wgpu::RenderPipelineDescriptor rpDesc{};
     rpDesc.label = "Render pipeline";
@@ -201,32 +281,20 @@ void CreatePipelineAndBuffers()
 
     // create the buffers (x, y, r, g, b)
     float const vertData[] = {
-        0.5f,   0.0f,    0.0f, 0.353f, 0.612f,
-        1.0f,   0.866f,  0.0f, 0.353f, 0.612f,
-        0.0f,   0.866f,  0.0f, 0.353f, 0.612f,
-                          
-        0.75f,  0.433f,  0.0f, 0.4f,   0.7f,
-        1.25f,  0.433f,  0.0f, 0.4f,   0.7f,
-        1.0f,   0.866f,  0.0f, 0.4f,   0.7f,
-                          
-        1.0,   0.0f,    0.0f, 0.463f, 0.8f,
-        1.25,  0.433f,  0.0f, 0.463f, 0.8f,
-        0.75,  0.433f,  0.0f, 0.463f, 0.8f,
-                          
-        1.25,  0.433f,  0.0f, 0.525f, 0.91f,
-        1.375, 0.65f,   0.0f, 0.525f, 0.91f,
-        1.125, 0.65f,   0.0f, 0.525f, 0.91f,
-                          
-        1.125, 0.65f,   0.0f, 0.576f, 1.0f,
-        1.375, 0.65f,   0.0f, 0.576f, 1.0f,
-        1.25,  0.866f,  0.0f, 0.576f, 1.0f,
+         -0.5f, -0.3f, -0.5f,    1.0, 1.0, 1.0,
+         +0.5f, -0.3f, -0.5f,    1.0, 1.0, 1.0,
+        +0.5f, -0.3f, +0.5f,    1.0, 1.0, 1.0,
+        -0.5f, -0.3f, +0.5f,    1.0, 1.0, 1.0,
+                                
+        +0.0, +0.5, +0.0,    0.5, 0.5, 0.5,
     };
     uint16_t const indxData[] = {
-        0,  1,  2,
-        3,  4,  5,
-        6,  7,  8,
-        9,  10, 11,
-        12, 13, 14,
+        0, 1, 2,
+        0, 2, 3,
+        0, 1, 4,
+        1, 2, 4,
+        2, 3, 4,
+        3, 0, 4,
     };
 
     g_vertBuf = CreateBuffer(vertData, sizeof(vertData), wgpu::BufferUsage::Vertex, "Vertex buffer");
@@ -242,8 +310,8 @@ void Render(double time)
     ImGui::NewFrame();
 
     bool show = true;
-    ImGui::ShowDemoWindow(&show);
-
+    //ImGui::ShowDemoWindow(&show);
+    // TODO: Add imgui code here.
 
     ImGui::Render();
 
@@ -252,7 +320,7 @@ void Render(double time)
     wgpu::RenderPassColorAttachment colorDesc{};
     colorDesc.view = g_msaaView;
     colorDesc.resolveTarget = backBufView;
-    colorDesc.loadOp = wgpu::LoadOp::Clear;
+    colorDesc.loadOp = wgpu::LoadOp::Clear; 
     colorDesc.storeOp = wgpu::StoreOp::Discard; // TODO: Review difference with store.
     colorDesc.clearValue.r = 0.3f;
     colorDesc.clearValue.g = 0.3f;
@@ -266,11 +334,12 @@ void Render(double time)
     depthStencilAttachment.depthStoreOp = wgpu::StoreOp::Store;
     depthStencilAttachment.depthReadOnly = false;
     depthStencilAttachment.stencilClearValue = 0.f;
-    depthStencilAttachment.stencilLoadOp = wgpu::LoadOp::Undefined;
+    depthStencilAttachment.stencilLoadOp = wgpu::LoadOp::Undefined; 
     depthStencilAttachment.stencilStoreOp = wgpu::StoreOp::Undefined;
     depthStencilAttachment.stencilReadOnly = true;
 
-
+    g_commonData.time = glfwGetTime();
+    g_queue.WriteBuffer(g_commonBuf, offsetof(Common, time), &g_commonData.time, sizeof(Common::time));
 
     wgpu::CommandEncoderDescriptor ceDesc;
     ceDesc.label = "Command encoder";
@@ -288,8 +357,9 @@ void Render(double time)
     pass.SetPipeline(g_pipeline);
     pass.SetVertexBuffer(0, g_vertBuf, 0, wgpu::kWholeSize);
     pass.SetIndexBuffer(g_indxBuf, wgpu::IndexFormat::Uint16, 0, wgpu::kWholeSize);
+    pass.SetBindGroup(0, g_bindGroup, 0, nullptr);
 
-    pass.DrawIndexed(15, 1, 0, 0, 0);
+    pass.DrawIndexed(18, 1, 0, 0, 0);
 
     pass.End();
 

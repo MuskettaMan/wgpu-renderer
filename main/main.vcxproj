@@ -42,34 +42,45 @@
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)lib\magic_enum\include;$(ProjectDir)lib\imgui</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)ext\magic_enum\include;$(ProjectDir)ext\imgui;$(ProjectDir)ext\glm</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>GLM_FORCE_DEPTH_ZERO_TO_ONE;GLM_FORCE_LEFT_HANDED</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalDependencies>
       </AdditionalDependencies>
-      <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 -s USE_GLFW=3  -sASYNCIFY --embed-file assets --shell-file assets/shell.html</AdditionalOptions>
+      <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 -s USE_GLFW=3  -sASYNCIFY</AdditionalOptions>
       <EnableMemoryGrowth>true</EnableMemoryGrowth>
+      <HtmlShellFile>assets/shell.html</HtmlShellFile>
+      <PreloadFile>
+      </PreloadFile>
+      <EmbedFile>assets</EmbedFile>
+      <EchoCommandLines>true</EchoCommandLines>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Emscripten'">
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)lib\magic_enum\include;$(ProjectDir)lib\imgui</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)ext\magic_enum\include;$(ProjectDir)ext\imgui;$(ProjectDir)ext\glm</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>GLM_FORCE_DEPTH_ZERO_TO_ONE;GLM_FORCE_LEFT_HANDED</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 -s USE_GLFW=3  -sASYNCIFY --embed-file assets</AdditionalOptions>
+      <AdditionalOptions>-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='$UTF8ToString' -s USE_WEBGPU=1 -s WASM=1 -s USE_GLFW=3  -sASYNCIFY</AdditionalOptions>
       <EnableMemoryGrowth>true</EnableMemoryGrowth>
+      <HtmlShellFile>assets/shell.html</HtmlShellFile>
+      <PreloadFile>
+      </PreloadFile>
+      <EmbedFile>assets</EmbedFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="lib\imgui\backends\imgui_impl_glfw.cpp" />
-    <ClCompile Include="lib\imgui\backends\imgui_impl_wgpu.cpp" />
-    <ClCompile Include="lib\imgui\imgui.cpp" />
-    <ClCompile Include="lib\imgui\imgui_demo.cpp" />
-    <ClCompile Include="lib\imgui\imgui_draw.cpp" />
-    <ClCompile Include="lib\imgui\imgui_tables.cpp" />
-    <ClCompile Include="lib\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="ext\imgui\backends\imgui_impl_glfw.cpp" />
+    <ClCompile Include="ext\imgui\backends\imgui_impl_wgpu.cpp" />
+    <ClCompile Include="ext\imgui\imgui.cpp" />
+    <ClCompile Include="ext\imgui\imgui_demo.cpp" />
+    <ClCompile Include="ext\imgui\imgui_draw.cpp" />
+    <ClCompile Include="ext\imgui\imgui_tables.cpp" />
+    <ClCompile Include="ext\imgui\imgui_widgets.cpp" />
     <ClCompile Include="source\main.cpp" />
   </ItemGroup>
   <ItemGroup>
