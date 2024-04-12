@@ -42,7 +42,7 @@
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)ext\magic_enum\include;$(ProjectDir)ext\imgui;$(ProjectDir)ext\glm</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)ext\magic_enum\include;$(ProjectDir)ext\imgui;$(ProjectDir)ext\entt;$(ProjectDir)ext\glm</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLM_FORCE_DEPTH_ZERO_TO_ONE;GLM_FORCE_LEFT_HANDED</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -61,7 +61,7 @@
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)ext\magic_enum\include;$(ProjectDir)ext\imgui;$(ProjectDir)ext\glm</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)ext\magic_enum\include;$(ProjectDir)ext\imgui;$(ProjectDir)ext\entt;$(ProjectDir)ext\glm</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLM_FORCE_DEPTH_ZERO_TO_ONE;GLM_FORCE_LEFT_HANDED</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -82,9 +82,15 @@
     <ClCompile Include="ext\imgui\imgui_tables.cpp" />
     <ClCompile Include="ext\imgui\imgui_widgets.cpp" />
     <ClCompile Include="source\main.cpp" />
+    <ClCompile Include="source\renderer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\aliases.hpp" />
+    <ClInclude Include="include\camera.hpp" />
     <ClInclude Include="include\enum_util.hpp" />
+    <ClInclude Include="include\mesh.hpp" />
+    <ClInclude Include="include\renderer.hpp" />
+    <ClInclude Include="include\transform.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\frag.wgsl" />
