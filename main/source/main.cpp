@@ -91,13 +91,14 @@ EM_BOOL em_render(double time, void* userData)
             3, 0, 4,
         };
 
-        for(int i = 0; i < 1; ++i)
+        for(int i = 0; i < 256; ++i)
         {
             entt::entity entity = g_registry.create();
             Transform& transform = g_registry.emplace<Transform>(entity);
             auto& mesh = g_registry.emplace<Mesh>(entity);
 
-            transform.translation = glm::vec3{ i - 2.0f, 0.0f, 0.0f };
+            transform.scale = glm::vec3{ 0.1f };
+            transform.translation = glm::vec3{ i - 2.0f, 0.0f, 0.0f } * transform.scale;
             g_renderer->InitializeMesh(mesh, vertices, indices);
         }
     }

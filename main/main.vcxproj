@@ -91,6 +91,7 @@
     <ClInclude Include="include\mesh.hpp" />
     <ClInclude Include="include\renderer.hpp" />
     <ClInclude Include="include\transform.hpp" />
+    <ClInclude Include="include\utils.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\frag.wgsl" />

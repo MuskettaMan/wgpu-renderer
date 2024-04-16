@@ -10,6 +10,7 @@
 
 #include "aliases.hpp"
 #include "enum_util.hpp"
+#include "utils.hpp"
 
 Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t width, int32_t height) :
     _adapter(deviceResources.adapter),
@@ -18,7 +19,8 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
     _queue(deviceResources.queue),
     _window(window),
     _width(width),
-    _height(height)
+    _height(height),
+    _uniformStride(ceilToNextMultiple(sizeof(Instance), 256))
 {
     _device.SetUncapturedErrorCallback([](WGPUErrorType error, const char* message, void* userdata)
                                        {
@@ -39,16 +41,12 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
     glm::mat4 camMat{ BuildSRT(_cameraTransform) };
 
     _commonData.view = glm::inverse(camMat);
-    _commonData.proj = glm::perspective(_camera.fov, _camera.ratio, _camera.zNear, _camera.zFar);
-    _commonData.vp = _commonData.proj * _commonData.view;
-
-    _instanceData.model = glm::identity<glm::mat4>();
 
     _commonBuf = CreateBuffer(&_commonData, sizeof(_commonData), wgpu::BufferUsage::Uniform, "Common uniform");
-    _instanceBuf = CreateBuffer(&_instanceData, sizeof(_instanceData), wgpu::BufferUsage::Uniform, "Instance uniform");
+    _instanceBuf = CreateBuffer(nullptr, _uniformStride * MAX_INSTANCES, wgpu::BufferUsage::Uniform, "Instance uniform");
 
-    SetupRenderTarget();
     CreatePipelineAndBuffers();
+    Resize(_width, _height);
 
     if (!SetupImGui())
     {
@@ -70,7 +68,8 @@ void Renderer::Render() const
     ImGui::NewFrame();
 
     bool show = true;
-    //ImGui::ShowDemoWindow(&show);
+    ImGui::ShowMetricsWindow(&show);
+    
     // TODO: Add imgui code here.
 
     ImGui::Render();
@@ -115,21 +114,27 @@ void Renderer::Render() const
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPass);
 
     pass.SetPipeline(_pipeline);
+
+    uint32_t i{ 0 };
     while(!_drawings.empty())
     {
         auto [mesh, transform] = _drawings.front();
         _drawings.pop();
 
-        _instanceData.model = BuildSRT(transform);
+        Instance instance;
+        instance.model = BuildSRT(transform);
 
-        // WARNING: Changing buffers like this wont reflect individually in the draw call.
-        //_queue.WriteBuffer(_instanceBuf, 0, &_instanceData, sizeof(_instanceData));
+        uint32_t dynamicOffset{ i * _uniformStride };
+        _queue.WriteBuffer(_instanceBuf, dynamicOffset, &instance, sizeof(instance));
 
         pass.SetVertexBuffer(0, mesh.vertBuf, 0, wgpu::kWholeSize);
         pass.SetIndexBuffer(mesh.indexBuf, mesh.indexFormat, 0, wgpu::kWholeSize);
-        pass.SetBindGroup(0, _bindGroup, 0, nullptr);
+
+        pass.SetBindGroup(0, _bindGroup, 1, &dynamicOffset);
 
         pass.DrawIndexed(mesh.indexCount, 1, 0, 0, 0);
+
+        ++i;
     }
 
     pass.End();
@@ -250,7 +255,8 @@ void Renderer::CreatePipelineAndBuffers()
     bgLayoutEntry[1].binding = 1;
     bgLayoutEntry[1].visibility = wgpu::ShaderStage::Vertex;
     bgLayoutEntry[1].buffer.type = wgpu::BufferBindingType::Uniform;
-    bgLayoutEntry[1].buffer.minBindingSize = sizeof(_instanceData);
+    bgLayoutEntry[1].buffer.minBindingSize = sizeof(Instance);
+    bgLayoutEntry[1].buffer.hasDynamicOffset = true;
 
     wgpu::BindGroupLayoutDescriptor bgLayoutDesc{};
     bgLayoutDesc.label = "Default binding group layout";
@@ -265,7 +271,7 @@ void Renderer::CreatePipelineAndBuffers()
 
     bgEntry[1].binding = 1;
     bgEntry[1].buffer = _instanceBuf;
-    bgEntry[1].size = sizeof(_instanceData);
+    bgEntry[1].size = sizeof(Instance);
 
     wgpu::BindGroupDescriptor bgDesc{};
     bgDesc.layout = _bgLayout;

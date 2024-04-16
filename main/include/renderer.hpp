@@ -9,6 +9,8 @@
 #include "mesh.hpp"
 #include "transform.hpp"
 
+constexpr uint32_t MAX_INSTANCES{ 4096 };
+
 class Renderer
 {
 public:
@@ -69,6 +71,8 @@ private:
     Camera _camera;
     Transform _cameraTransform;
 
+    uint32_t _uniformStride;
+
     struct Common
     {
         glm::mat4 proj;
@@ -85,7 +89,6 @@ private:
     };
 
     mutable Common _commonData;
-    mutable Instance _instanceData;
 
     mutable std::queue<std::tuple<Mesh, Transform>> _drawings;
 };
