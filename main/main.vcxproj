@@ -42,7 +42,7 @@
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)ext\magic_enum\include;$(ProjectDir)ext\imgui;$(ProjectDir)ext\entt;$(ProjectDir)ext\glm</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)ext\magic_enum\include;$(ProjectDir)ext\imgui;$(ProjectDir)ext\entt;$(ProjectDir)ext\glm;$(ProjectDir)ext\tinygltf</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLM_FORCE_DEPTH_ZERO_TO_ONE;GLM_FORCE_LEFT_HANDED</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -61,7 +61,7 @@
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)ext\magic_enum\include;$(ProjectDir)ext\imgui;$(ProjectDir)ext\entt;$(ProjectDir)ext\glm</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)ext\magic_enum\include;$(ProjectDir)ext\imgui;$(ProjectDir)ext\entt;$(ProjectDir)ext\glm;$(ProjectDir)ext\tinygltf</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLM_FORCE_DEPTH_ZERO_TO_ONE;GLM_FORCE_LEFT_HANDED</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -81,7 +81,9 @@
     <ClCompile Include="ext\imgui\imgui_draw.cpp" />
     <ClCompile Include="ext\imgui\imgui_tables.cpp" />
     <ClCompile Include="ext\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="ext\tinygltf\tiny_gltf.cc" />
     <ClCompile Include="source\main.cpp" />
+    <ClCompile Include="source\mesh.cpp" />
     <ClCompile Include="source\renderer.cpp" />
   </ItemGroup>
   <ItemGroup>

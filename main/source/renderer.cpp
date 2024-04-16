@@ -179,14 +179,6 @@ void Renderer::DrawMesh(const Mesh& mesh, const Transform& transform)
     _drawings.emplace(mesh, transform);
 }
 
-void Renderer::InitializeMesh(Mesh& mesh, const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
-{
-    mesh.vertBuf = CreateBuffer(vertices.data(), sizeof(Vertex) * vertices.size(), wgpu::BufferUsage::Vertex, "Vertex buffer");
-    mesh.indexBuf = CreateBuffer(indices.data(), sizeof(uint32_t) * indices.size(), wgpu::BufferUsage::Index, "Index buffer");
-    mesh.indexFormat = wgpu::IndexFormat::Uint32;
-    mesh.indexCount = indices.size();
-}
-
 void Renderer::SetupRenderTarget()
 {
     wgpu::SurfaceDescriptorFromCanvasHTMLSelector canvasDesc{};

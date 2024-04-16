@@ -91,7 +91,7 @@ EM_BOOL em_render(double time, void* userData)
             3, 0, 4,
         };
 
-        for(int i = 0; i < 256; ++i)
+        for(int i = 0; i < 2; ++i)
         {
             entt::entity entity = g_registry.create();
             Transform& transform = g_registry.emplace<Transform>(entity);
@@ -99,7 +99,12 @@ EM_BOOL em_render(double time, void* userData)
 
             transform.scale = glm::vec3{ 0.1f };
             transform.translation = glm::vec3{ i - 2.0f, 0.0f, 0.0f } * transform.scale;
-            g_renderer->InitializeMesh(mesh, vertices, indices);
+
+            auto optMesh = Mesh::CreateMesh("assets/models/DamagedHelmet.gltf", *g_renderer);
+            if(!optMesh)
+            {
+                std::cout << "Failed getting mesh" << std::endl;
+            }
         }
     }
     else if(!initialized)

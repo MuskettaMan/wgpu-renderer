@@ -35,9 +35,10 @@ public:
     void Resize(int32_t width, int32_t height);
 
     void DrawMesh(const Mesh& mesh, const Transform& transform);
-    void InitializeMesh(Mesh& mesh, const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
 
 private:
+    friend Mesh;
+
     void SetupRenderTarget();
     void CreatePipelineAndBuffers();
     wgpu::Buffer CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage, const char* label);
