@@ -17,6 +17,7 @@ public:
     struct Vertex
     {
         glm::vec3 position;
+        glm::vec3 normal;
         glm::vec3 color;
     };
 
@@ -35,6 +36,9 @@ public:
     void Resize(int32_t width, int32_t height);
 
     void DrawMesh(const Mesh& mesh, const Transform& transform);
+
+    Camera& GetCamera() { return _camera; }
+    Transform& GetCameraTransform() { return _cameraTransform; }
 
 private:
     friend Mesh;

@@ -81,7 +81,9 @@
     <ClCompile Include="ext\imgui\imgui_draw.cpp" />
     <ClCompile Include="ext\imgui\imgui_tables.cpp" />
     <ClCompile Include="ext\imgui\imgui_widgets.cpp" />
-    <ClCompile Include="ext\tinygltf\tiny_gltf.cc" />
+    <ClCompile Include="ext\tinygltf\tiny_gltf.cc">
+      <OptimizationLevel Condition="'$(Configuration)|$(Platform)'=='Debug|Emscripten'">O3</OptimizationLevel>
+    </ClCompile>
     <ClCompile Include="source\main.cpp" />
     <ClCompile Include="source\mesh.cpp" />
     <ClCompile Include="source\renderer.cpp" />

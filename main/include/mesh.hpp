@@ -1,6 +1,8 @@
 #pragma once
 #include <webgpu/webgpu_cpp.h>
 
+#include "aliases.hpp"
+
 class Renderer;
 
 struct Mesh

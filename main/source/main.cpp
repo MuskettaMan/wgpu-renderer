@@ -10,6 +10,7 @@
 #include "aliases.hpp"
 #include "renderer.hpp"
 #include <entt.hpp>
+#include <cmath>
 
 using namespace std::literals::chrono_literals;
 
@@ -17,6 +18,12 @@ std::unique_ptr<Renderer> g_renderer;
 Renderer::DeviceResources g_resources;
 
 entt::registry g_registry;
+
+int32_t g_mouseX;
+int32_t g_mouseY;
+int32_t g_mouseXPrev;
+int32_t g_mouseYPrev;
+float g_mouseScrollDelta{ 0.0f };
 
 void RequestDeviceResources(Renderer::DeviceResources& deviceResources)
 {
@@ -64,53 +71,78 @@ void RequestDeviceResources(Renderer::DeviceResources& deviceResources)
 EM_BOOL em_render(double time, void* userData)
 {
     static bool initialized = false;
+    GLFWwindow* window = reinterpret_cast<GLFWwindow*>(userData);
     if(!g_renderer && g_resources.device.Get())
     {
-        GLFWwindow* window = reinterpret_cast<GLFWwindow*>(userData);
         int32_t width, height;
         glfwGetWindowSize(window, &width, &height);
 
         g_renderer = std::make_unique<Renderer>(g_resources, window, width, height);
         initialized = true;
 
-        // create the buffers (x, y, r, g, b)
-        std::vector<Renderer::Vertex> vertices = {
-            Renderer::Vertex{glm::vec3{ -0.5f, -0.3f, -0.5f }, glm::vec3{ 1.0f, 1.0f, 1.0f } },
-            Renderer::Vertex{glm::vec3{ +0.5f, -0.3f, -0.5f }, glm::vec3{ 1.0f, 1.0f, 1.0f } },
-            Renderer::Vertex{glm::vec3{ +0.5f, -0.3f, +0.5f }, glm::vec3{ 1.0f, 1.0f, 1.0f } },
-            Renderer::Vertex{glm::vec3{ -0.5f, -0.3f, +0.5f }, glm::vec3{ 1.0f, 1.0f, 1.0f } },
-
-            Renderer::Vertex{glm::vec3{ +0.0f, +0.5f, +0.0f }, glm::vec3{ 0.5f, 0.5f, 0.5f } }
-        };
-        std::vector<uint32_t> indices = {
-            0, 1, 2,
-            0, 2, 3,
-            0, 1, 4,
-            1, 2, 4,
-            2, 3, 4,
-            3, 0, 4,
-        };
-
-        for(int i = 0; i < 2; ++i)
+        for(int i = 0; i < 1; ++i)
         {
             entt::entity entity = g_registry.create();
             Transform& transform = g_registry.emplace<Transform>(entity);
             auto& mesh = g_registry.emplace<Mesh>(entity);
 
-            transform.scale = glm::vec3{ 0.1f };
-            transform.translation = glm::vec3{ i - 2.0f, 0.0f, 0.0f } * transform.scale;
+            transform.scale = glm::vec3{ 2.0f };
+            transform.translation = glm::vec3{ i, 0.0f, 0.0f } * transform.scale;
 
             auto optMesh = Mesh::CreateMesh("assets/models/DamagedHelmet.gltf", *g_renderer);
             if(!optMesh)
             {
                 std::cout << "Failed getting mesh" << std::endl;
             }
+            else
+            {
+                mesh = optMesh.value();
+            }
+
         }
     }
     else if(!initialized)
     {
         return true;
     }
+    int32_t mouseXDelta{};
+    int32_t mouseYDelta{};
+    {
+        double xPos, yPos;
+        glfwGetCursorPos(window, &xPos, &yPos); 
+        g_mouseX = static_cast<int32_t>(xPos);
+        g_mouseY = static_cast<int32_t>(yPos);
+
+        mouseXDelta = g_mouseXPrev - g_mouseX;
+        mouseYDelta = g_mouseYPrev - g_mouseY;
+    }
+
+
+    {
+        int mbLeftState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+
+        static float theta = 0.0f;
+        static float phi = 0.0f;
+        if(mbLeftState == GLFW_PRESS)
+        {
+            theta += mouseXDelta * 0.002f;
+            phi += mouseYDelta * -0.002f;
+            phi = std::clamp(phi, -glm::pi<float>() / 2, glm::pi<float>() / 2);
+        }
+        static float radius = 5.0f;
+
+        radius += g_mouseScrollDelta * -0.1f;
+        radius = std::clamp(radius, 1.0f, 10.0f);
+
+        g_mouseScrollDelta = std::lerp(g_mouseScrollDelta, 0.0f, 0.25f);
+
+        g_renderer->GetCameraTransform().translation = glm::vec3{ cos(phi) * cos(theta) * radius, sin(phi) * radius, cos(phi) * sin(theta) * radius};
+
+        glm::vec3 direction{ glm::vec3{ 0.0f } - g_renderer->GetCameraTransform().translation };
+
+        g_renderer->GetCameraTransform().rotation = glm::normalize(glm::quatLookAt(direction, glm::vec3{ 0.0f, 1.0f, 0.0f }));
+    }
+
 
     auto view = g_registry.view<Mesh, Transform>();
     for(auto&& [entity, mesh, transform] : view.each())
@@ -119,6 +151,10 @@ EM_BOOL em_render(double time, void* userData)
     }
 
     g_renderer->Render();
+
+    g_mouseXPrev = g_mouseX;
+    g_mouseYPrev = g_mouseY;
+
     return true;
 }
 
@@ -138,6 +174,11 @@ int main(int argc, char** argv)
     glfwSetWindowSizeCallback(window, [](GLFWwindow* window, int width, int height)
     {
         g_renderer->Resize(width, height);
+    });
+
+    glfwSetScrollCallback(window, [](GLFWwindow* window, double xDelta, double yDelta)
+    {
+        g_mouseScrollDelta = yDelta;
     });
 
 

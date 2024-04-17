@@ -74,6 +74,12 @@ void Renderer::Render() const
 
     ImGui::Render();
 
+    glm::mat4 camMat{ BuildSRT(_cameraTransform) };
+
+    _commonData.view = glm::inverse(camMat);
+    _commonData.vp = _commonData.proj * _commonData.view;
+    _queue.WriteBuffer(_commonBuf, 0, &_commonData, sizeof(_commonData));
+
     wgpu::TextureView backBufView = _swapChain.GetCurrentTextureView();
 
     wgpu::RenderPassColorAttachment colorDesc{};
@@ -238,7 +244,7 @@ void Renderer::SetupRenderTarget()
 
 void Renderer::CreatePipelineAndBuffers()
 {
-    wgpu::BindGroupLayoutEntry bgLayoutEntry[2]{};
+    std::array<wgpu::BindGroupLayoutEntry, 2> bgLayoutEntry{};
     bgLayoutEntry[0].binding = 0;
     bgLayoutEntry[0].visibility = wgpu::ShaderStage::Vertex;
     bgLayoutEntry[0].buffer.type = wgpu::BufferBindingType::Uniform;
@@ -252,11 +258,13 @@ void Renderer::CreatePipelineAndBuffers()
 
     wgpu::BindGroupLayoutDescriptor bgLayoutDesc{};
     bgLayoutDesc.label = "Default binding group layout";
-    bgLayoutDesc.entryCount = 2;
-    bgLayoutDesc.entries = bgLayoutEntry;
+    bgLayoutDesc.entryCount = bgLayoutEntry.size();
+    bgLayoutDesc.entries = bgLayoutEntry.data();
     _bgLayout = _device.CreateBindGroupLayout(&bgLayoutDesc);
 
-    wgpu::BindGroupEntry bgEntry[2]{};
+    std::array<wgpu::BindGroupEntry, 2> bgEntry{};
+    assert(bgLayoutEntry.size() == bgEntry.size() && "Bindgroup entry descriptions don't match their sizes");
+
     bgEntry[0].binding = 0;
     bgEntry[0].buffer = _commonBuf;
     bgEntry[0].size = sizeof(_commonData);
@@ -264,11 +272,11 @@ void Renderer::CreatePipelineAndBuffers()
     bgEntry[1].binding = 1;
     bgEntry[1].buffer = _instanceBuf;
     bgEntry[1].size = sizeof(Instance);
-
+     
     wgpu::BindGroupDescriptor bgDesc{};
     bgDesc.layout = _bgLayout;
     bgDesc.entryCount = bgLayoutDesc.entryCount;
-    bgDesc.entries = bgEntry;
+    bgDesc.entries = bgEntry.data();
     _bindGroup = _device.CreateBindGroup(&bgDesc);
 
     wgpu::ShaderModule vertModule = CreateShader("assets/vertex.wgsl", "Vertex shader");
@@ -280,21 +288,18 @@ void Renderer::CreatePipelineAndBuffers()
     layoutDesc.bindGroupLayouts = &_bgLayout;
     wgpu::PipelineLayout pipelineLayout = _device.CreatePipelineLayout(&layoutDesc);
 
-    wgpu::VertexAttribute vertAttrs[2] = {};
-    vertAttrs[0].format = wgpu::VertexFormat::Float32x3;
-    vertAttrs[0].offset = 0;
-    vertAttrs[0].shaderLocation = 0;
-    vertAttrs[1].format = wgpu::VertexFormat::Float32x3;
-    vertAttrs[1].offset = sizeof(float) * 3;
-    vertAttrs[1].shaderLocation = 1;
+    std::vector<wgpu::VertexAttribute> vertAttrs = {};
+    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, position), 0);
+    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, normal), 1);
+    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, color), 2);
 
     wgpu::VertexBufferLayout vertexBufferLayout{};
-    vertexBufferLayout.arrayStride = sizeof(float) * 6;
-    vertexBufferLayout.attributeCount = 2;
-    vertexBufferLayout.attributes = vertAttrs;
+    vertexBufferLayout.arrayStride = sizeof(Vertex);
+    vertexBufferLayout.attributeCount = vertAttrs.size();
+    vertexBufferLayout.attributes = vertAttrs.data();
     vertexBufferLayout.stepMode = wgpu::VertexStepMode::Vertex;
-
-    wgpu::BlendState blend{};
+     
+    wgpu::BlendState blend{}; 
     blend.color.operation = wgpu::BlendOperation::Add;
     blend.color.srcFactor = wgpu::BlendFactor::SrcAlpha;
     blend.color.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
@@ -303,7 +308,7 @@ void Renderer::CreatePipelineAndBuffers()
     blend.alpha.dstFactor = wgpu::BlendFactor::One;
 
     wgpu::ColorTargetState colorTarget{};
-    colorTarget.format = _swapChainFormat;
+    colorTarget.format = _swapChainFormat; 
     colorTarget.blend = &blend;
     colorTarget.writeMask = wgpu::ColorWriteMask::All;
 
@@ -312,7 +317,7 @@ void Renderer::CreatePipelineAndBuffers()
     fragment.entryPoint = "main";
     fragment.targetCount = 1;
     fragment.targets = &colorTarget;
-    fragment.constantCount = 0;
+    fragment.constantCount = 0; 
     fragment.constants = nullptr;
 
     wgpu::RenderPipelineDescriptor rpDesc{};
