@@ -410,13 +410,14 @@ wgpu::Texture Renderer::CreateTexture(const tinygltf::Image& image, const std::v
     source.offset = 0;
 
     wgpu::Extent3D mipLevelSize = textureDesc.size;
+    wgpu::Extent3D previousMipLevelSize;
     std::vector<uint8_t> previousMipData{};
     for (size_t i = 0; i < mipLevelCount; ++i)
     {
         std::vector<uint8_t> mipData(4 * mipLevelSize.width * mipLevelSize.height);
         if (i == 0)
         {
-            mipData = data;
+            mipData.assign(data.begin(), data.end());
         }
         else
         {
@@ -427,15 +428,16 @@ wgpu::Texture Renderer::CreateTexture(const tinygltf::Image& image, const std::v
                 {
                     uint8_t* p = &mipData[4 * (y * mipLevelSize.width + x)];
 
-                    uint8_t* p00 = &previousMipData[4 * ((2 * y + 0) * (2 * mipLevelSize.width) + (2 * x + 0))];
-                    uint8_t* p01 = &previousMipData[4 * ((2 * y + 0) * (2 * mipLevelSize.width) + (2 * x + 1))];
-                    uint8_t* p10 = &previousMipData[4 * ((2 * y + 1) * (2 * mipLevelSize.width) + (2 * x + 0))];
-                    uint8_t* p11 = &previousMipData[4 * ((2 * y + 1) * (2 * mipLevelSize.width) + (2 * x + 1))];
+                    uint8_t* p00 = &previousMipData[4 * ((2 * y + 0) * previousMipLevelSize.width + (2 * x + 0))];
+                    uint8_t* p01 = &previousMipData[4 * ((2 * y + 0) * previousMipLevelSize.width + (2 * x + 1))];
+                    uint8_t* p10 = &previousMipData[4 * ((2 * y + 1) * previousMipLevelSize.width + (2 * x + 0))];
+                    uint8_t* p11 = &previousMipData[4 * ((2 * y + 1) * previousMipLevelSize.width + (2 * x + 1))];
                     
                     // Average
                     p[0] = (p00[0] + p01[0] + p10[0] + p11[0]) / 4;
                     p[1] = (p00[1] + p01[1] + p10[1] + p11[1]) / 4;
                     p[2] = (p00[2] + p01[2] + p10[2] + p11[2]) / 4;
+                    p[3] = (p00[3] + p01[3] + p10[3] + p11[3]) / 4;
                 }
             }
         }
@@ -447,6 +449,7 @@ wgpu::Texture Renderer::CreateTexture(const tinygltf::Image& image, const std::v
 
         _queue.WriteTexture(&destination, mipData.data(), mipData.size(), &source, &mipLevelSize);
 
+        previousMipLevelSize = mipLevelSize;
         mipLevelSize.width /= 2;
         mipLevelSize.height /= 2;
 

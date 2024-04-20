@@ -5,6 +5,7 @@
 #include <tiny_gltf.h>
 
 #include "renderer.hpp"
+#include <utils.hpp>
 
 uint32_t CalculateStride(const tinygltf::Accessor& accessor)
 {
@@ -191,10 +192,13 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     mesh.indexFormat = indices32.empty() ? wgpu::IndexFormat::Uint16 : wgpu::IndexFormat::Uint32;
     mesh.indexCount = indexCount;
 
-    const uint32_t mipLevelCount = 8;
 
     const auto& albedoImage = model.images[model.textures[albedoIndex].source];
+    
+    const uint32_t mipLevelCount = bitWidth(std::max(albedoImage.width, albedoImage.height));
+
     mesh.albedoTexture = renderer.CreateTexture(albedoImage, albedoImage.image, mipLevelCount, albedoImage.name.c_str());
+
 
     wgpu::TextureViewDescriptor texViewDesc{};
     texViewDesc.dimension = wgpu::TextureViewDimension::e2D;
