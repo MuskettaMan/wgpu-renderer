@@ -31,9 +31,14 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     std::vector<uint32_t> indices32{};
     std::vector<uint16_t> indices16{};
 
+    int32_t albedoIndex;
+
     for(size_t i = 0; i < model.meshes.size(); ++i)
     {
         tinygltf::Primitive primitive = model.meshes[i].primitives[0];
+
+        tinygltf::Material material = model.materials[primitive.material];
+        albedoIndex = material.pbrMetallicRoughness.baseColorTexture.index;
 
         // Get positions.
         {
@@ -84,15 +89,13 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
                 return std::nullopt;
             }
         }
-
-        
     }
-    
+
     assert(positions.size() == normals.size() && "Vertex attributes don't match in length");
 
-    for(size_t i = 0; i < positions.size(); ++i)
+    for(size_t i = 0; i < positions.size(); ++i) 
     {
-        vertices.emplace_back(positions[i], normals[i], glm::vec3{positions[i].y * 0.5f + 0.5f });
+        vertices.emplace_back(positions[i], normals[i], glm::vec3{ 1.0f });
     }
 
     uint32_t indexCount = indices32.empty() ? indices16.size() : indices32.size();
@@ -103,11 +106,34 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     else
         indexData = indices32.data();
 
-    Mesh mesh{};
+    Mesh mesh{}; 
     mesh.vertBuf = renderer.CreateBuffer(vertices.data(), sizeof(Renderer::Vertex) * vertices.size(), wgpu::BufferUsage::Vertex, "Vertex buffer");
     mesh.indexBuf = renderer.CreateBuffer(indexData, indexBufferSize, wgpu::BufferUsage::Index, "Index buffer");
     mesh.indexFormat = indices32.empty() ? wgpu::IndexFormat::Uint16 : wgpu::IndexFormat::Uint32;
     mesh.indexCount = indexCount;
 
-    return mesh;
+    const auto& albedoImage = model.images[model.textures[albedoIndex].source];
+    mesh.albedoTexture = renderer.CreateTexture(albedoImage, albedoImage.image);
+
+    wgpu::TextureViewDescriptor texViewDesc{};
+    texViewDesc.dimension = wgpu::TextureViewDimension::e2D;
+    texViewDesc.format = wgpu::TextureFormat::RGBA8Unorm;
+    texViewDesc.baseArrayLayer = 0;
+    texViewDesc.arrayLayerCount = 1;
+    texViewDesc.mipLevelCount = 1;
+    texViewDesc.baseMipLevel = 0;
+    texViewDesc.aspect = wgpu::TextureAspect::All;
+    mesh.albedoTextureView = mesh.albedoTexture.CreateView(&texViewDesc);
+
+    wgpu::BindGroupEntry bgEntry{};
+    bgEntry.binding = 0;
+    bgEntry.textureView = mesh.albedoTextureView;
+
+    wgpu::BindGroupDescriptor bgDesc{};
+    bgDesc.layout = renderer.GetMeshBindGroupLayout();
+    bgDesc.entryCount = 1;
+    bgDesc.entries = &bgEntry;
+    mesh.bindGroup = renderer.GetDevice().CreateBindGroup(&bgDesc);
+
+    return std::optional<Mesh>(mesh);
 }

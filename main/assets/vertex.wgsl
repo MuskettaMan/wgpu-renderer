@@ -17,6 +17,10 @@ struct Common
     proj: mat4x4f,
     view: mat4x4f,
     vp: mat4x4f,
+
+    lightDirection: vec3<f32>,
+    lightColor: vec3<f32>,
+
     time: f32
 }
 
@@ -37,7 +41,7 @@ fn main(input: VertexIn) -> VertexOut {
     let mvp = u_common.vp * u_instance.model;
     
     output.vPos = mvp * vec4<f32>(pos, 1.0);
-    output.vNormal = input.aNormal;
+    output.vNormal = (u_instance.model * vec4(input.aNormal, 0.0)).xyz;
     output.vCol = input.aCol;
 
     return output;

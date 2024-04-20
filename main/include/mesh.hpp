@@ -12,6 +12,11 @@ struct Mesh
     wgpu::IndexFormat indexFormat;
     uint32_t indexCount;
 
+    wgpu::Texture albedoTexture;
+    wgpu::TextureView albedoTextureView;
+    wgpu::Sampler albedoSampler;
+    wgpu::BindGroup bindGroup;
+
     static std::optional<Mesh> CreateMesh(const std::string& path, Renderer& renderer);
 };
 

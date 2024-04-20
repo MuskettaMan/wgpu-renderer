@@ -3,6 +3,7 @@
 #include <glm.hpp>
 #include <queue>
 #include <GLFW/glfw3.h>
+#include <tiny_gltf.h>
 
 #include "aliases.hpp"
 #include "camera.hpp"
@@ -46,9 +47,13 @@ private:
     void SetupRenderTarget();
     void CreatePipelineAndBuffers();
     wgpu::Buffer CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage, const char* label);
+    wgpu::Texture CreateTexture(const tinygltf::Image& image, const std::vector<uint8_t>& data, const char* label = nullptr);
     wgpu::ShaderModule CreateShader(const std::string& path, const char* label = nullptr);
     glm::mat4 BuildSRT(const Transform& transform) const;
     bool SetupImGui();
+
+    wgpu::Device& GetDevice() { return _device; }
+    wgpu::BindGroupLayout& GetMeshBindGroupLayout() { return _bgLayouts.mesh; }
 
     wgpu::Adapter _adapter;
     wgpu::Instance _instance;
@@ -64,8 +69,14 @@ private:
     wgpu::RenderPipeline _pipeline;
     wgpu::Buffer _commonBuf;
     wgpu::Buffer _instanceBuf;
-    wgpu::BindGroupLayout _bgLayout;
-    wgpu::BindGroup _bindGroup;
+
+    struct
+    {
+        wgpu::BindGroupLayout standard;
+        wgpu::BindGroupLayout mesh;
+    } _bgLayouts;
+
+    wgpu::BindGroup _standardBindGroup;
 
     int32_t _width = 1280;
     int32_t _height = 720;
@@ -83,9 +94,13 @@ private:
         glm::mat4 proj;
         glm::mat4 view;
         glm::mat4 vp;
+
+        glm::vec3 lightDirection;
+        glm::vec3 lightColor;
+
         float time;
 
-        float _padding[3];
+        float padding[1];
     };
 
     struct Instance

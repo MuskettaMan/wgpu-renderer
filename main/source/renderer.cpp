@@ -68,9 +68,11 @@ void Renderer::Render() const
     ImGui::NewFrame();
 
     bool show = true;
-    ImGui::ShowMetricsWindow(&show);
     
-    // TODO: Add imgui code here.
+    ImGui::Begin("Inspector");
+    ImGui::InputFloat3("Light direction", &_commonData.lightDirection.x);
+    ImGui::ColorEdit3("Light color", &_commonData.lightColor.r);
+    ImGui::End();
 
     ImGui::Render();
 
@@ -106,7 +108,7 @@ void Renderer::Render() const
     _commonData.time = glfwGetTime();
     _queue.WriteBuffer(_commonBuf, offsetof(Common, time), &_commonData.time, sizeof(Common::time));
 
-    wgpu::CommandEncoderDescriptor ceDesc;
+    wgpu::CommandEncoderDescriptor ceDesc; 
     ceDesc.label = "Command encoder";
 
     wgpu::CommandEncoder encoder = _device.CreateCommandEncoder(&ceDesc);
@@ -118,7 +120,7 @@ void Renderer::Render() const
     renderPass.depthStencilAttachment = &depthStencilAttachment;
 
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPass);
-
+     
     pass.SetPipeline(_pipeline);
 
     uint32_t i{ 0 };
@@ -136,7 +138,8 @@ void Renderer::Render() const
         pass.SetVertexBuffer(0, mesh.vertBuf, 0, wgpu::kWholeSize);
         pass.SetIndexBuffer(mesh.indexBuf, mesh.indexFormat, 0, wgpu::kWholeSize);
 
-        pass.SetBindGroup(0, _bindGroup, 1, &dynamicOffset);
+        pass.SetBindGroup(0, _standardBindGroup, 1, &dynamicOffset);
+        pass.SetBindGroup(1, mesh.bindGroup, 0, nullptr);
 
         pass.DrawIndexed(mesh.indexCount, 1, 0, 0, 0);
 
@@ -246,7 +249,7 @@ void Renderer::CreatePipelineAndBuffers()
 {
     std::array<wgpu::BindGroupLayoutEntry, 2> bgLayoutEntry{};
     bgLayoutEntry[0].binding = 0;
-    bgLayoutEntry[0].visibility = wgpu::ShaderStage::Vertex;
+    bgLayoutEntry[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
     bgLayoutEntry[0].buffer.type = wgpu::BufferBindingType::Uniform;
     bgLayoutEntry[0].buffer.minBindingSize = sizeof(_commonData);
 
@@ -260,7 +263,7 @@ void Renderer::CreatePipelineAndBuffers()
     bgLayoutDesc.label = "Default binding group layout";
     bgLayoutDesc.entryCount = bgLayoutEntry.size();
     bgLayoutDesc.entries = bgLayoutEntry.data();
-    _bgLayout = _device.CreateBindGroupLayout(&bgLayoutDesc);
+    _bgLayouts.standard = _device.CreateBindGroupLayout(&bgLayoutDesc);
 
     std::array<wgpu::BindGroupEntry, 2> bgEntry{};
     assert(bgLayoutEntry.size() == bgEntry.size() && "Bindgroup entry descriptions don't match their sizes");
@@ -274,18 +277,35 @@ void Renderer::CreatePipelineAndBuffers()
     bgEntry[1].size = sizeof(Instance);
      
     wgpu::BindGroupDescriptor bgDesc{};
-    bgDesc.layout = _bgLayout;
+    bgDesc.label = "Standard bind group";
+    bgDesc.layout = _bgLayouts.standard;
     bgDesc.entryCount = bgLayoutDesc.entryCount;
     bgDesc.entries = bgEntry.data();
-    _bindGroup = _device.CreateBindGroup(&bgDesc);
+    _standardBindGroup = _device.CreateBindGroup(&bgDesc);
+
+
+    // Create mesh bind group layout.
+    wgpu::BindGroupLayoutEntry bgLayoutEntryMesh{};
+    bgLayoutEntryMesh.binding = 0;
+    bgLayoutEntryMesh.visibility = wgpu::ShaderStage::Fragment;
+    bgLayoutEntryMesh.texture.sampleType = wgpu::TextureSampleType::Float;
+    bgLayoutEntryMesh.texture.viewDimension = wgpu::TextureViewDimension::e2D;
+    bgLayoutEntryMesh.texture.multisampled = false;
+
+    wgpu::BindGroupLayoutDescriptor bgLayoutMeshDesc{};
+    bgLayoutMeshDesc.label = "Mesh binding group layout";
+    bgLayoutMeshDesc.entryCount = 1;
+    bgLayoutMeshDesc.entries = &bgLayoutEntryMesh;
+    _bgLayouts.mesh = _device.CreateBindGroupLayout(&bgLayoutMeshDesc);
+
 
     wgpu::ShaderModule vertModule = CreateShader("assets/vertex.wgsl", "Vertex shader");
     wgpu::ShaderModule fragModule = CreateShader("assets/frag.wgsl", "Fragment shader");
 
     wgpu::PipelineLayoutDescriptor layoutDesc{};
     layoutDesc.label = "Default pipeline layout";
-    layoutDesc.bindGroupLayoutCount = 1;
-    layoutDesc.bindGroupLayouts = &_bgLayout;
+    layoutDesc.bindGroupLayoutCount = 2;
+    layoutDesc.bindGroupLayouts = &_bgLayouts.standard;
     wgpu::PipelineLayout pipelineLayout = _device.CreatePipelineLayout(&layoutDesc);
 
     std::vector<wgpu::VertexAttribute> vertAttrs = {};
@@ -363,6 +383,37 @@ wgpu::Buffer Renderer::CreateBuffer(const void* data, unsigned long size, wgpu::
     _queue.WriteBuffer(buffer, 0, data, desc.size);
 
     return buffer;
+}
+
+wgpu::Texture Renderer::CreateTexture(const tinygltf::Image& image, const std::vector<uint8_t>& data, const char* label)
+{
+    wgpu::TextureDescriptor textureDesc{};
+    textureDesc.dimension = wgpu::TextureDimension::e2D;
+    textureDesc.size = { static_cast<uint32_t>(image.width), static_cast<uint32_t>(image.height), 1 };
+    textureDesc.format = wgpu::TextureFormat::RGBA8Unorm;
+    textureDesc.mipLevelCount = 1;
+    textureDesc.sampleCount = 1;
+    textureDesc.usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding;
+    textureDesc.viewFormatCount = 0;
+    textureDesc.viewFormats = nullptr;
+
+    auto texture = _device.CreateTexture(&textureDesc);
+
+    wgpu::ImageCopyTexture destination{};
+    destination.texture = texture;
+    destination.mipLevel = 0;
+    destination.origin = { 0, 0, 0 };
+    destination.aspect = wgpu::TextureAspect::All;
+
+    wgpu::TextureDataLayout source{};
+    source.offset = 0;
+    source.bytesPerRow = 4 * textureDesc.size.width;
+    source.rowsPerImage = textureDesc.size.height;
+
+
+    _queue.WriteTexture(&destination, data.data(), data.size(), &source, &textureDesc.size);
+
+    return texture;
 }
 
 wgpu::ShaderModule Renderer::CreateShader(const std::string& path, const char* label)
