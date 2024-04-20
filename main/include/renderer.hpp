@@ -19,7 +19,7 @@ public:
     {
         glm::vec3 position;
         glm::vec3 normal;
-        glm::vec3 color;
+        glm::vec2 uv;
     };
 
     struct DeviceResources
@@ -96,11 +96,12 @@ private:
         glm::mat4 vp;
 
         glm::vec3 lightDirection;
+        float padding[1];
+
         glm::vec3 lightColor;
 
         float time;
 
-        float padding[1];
     };
 
     struct Instance

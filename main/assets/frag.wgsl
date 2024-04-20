@@ -2,7 +2,7 @@ struct VertexOut
 {
     @builtin(position) vPos: vec4<f32>,
     @location(0) vNormal: vec3<f32>,
-    @location(1) vCol: vec3<f32>
+    @location(1) vUv: vec2<f32>
 }
 
 struct Common 
@@ -19,13 +19,16 @@ struct Common
 
 @group(0) @binding(0) var<uniform> u_common: Common;
 @group(1) @binding(0) var u_albedo: texture_2d<f32>;
+@group(1) @binding(1) var u_albedoSampler: sampler;
 
 @fragment
 fn main(in: VertexOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.vNormal);
 
-    let shading = max(0.0, dot(u_common.lightDirection, in.vNormal));
-    let color = textureLoad(u_albedo, vec2i(in.vPos.xy), 0).rgb;//in.vCol * shading;
+    let shading = u_common.lightColor * max(0.0, dot(u_common.lightDirection, in.vNormal));
+    let albedo = textureSample(u_albedo, u_albedoSampler, in.vUv).rgb;
+    let color = albedo * (shading + vec3<f32>(0.2));
+    //let color = vec3<f32>(in.vUv.rg, 0.0);
 
     return vec4<f32>(color, 1.0);
 }

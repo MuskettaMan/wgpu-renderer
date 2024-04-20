@@ -2,14 +2,14 @@ struct VertexIn
 {
     @location(0) aPos: vec3<f32>,
     @location(1) aNormal: vec3<f32>,
-    @location(2) aCol: vec3<f32>
+    @location(2) aUv: vec2<f32>
 }
 
 struct VertexOut 
 {
     @builtin(position) vPos: vec4<f32>,
     @location(0) vNormal: vec3<f32>,
-    @location(1) vCol: vec3<f32>
+    @location(1) vUv: vec2<f32>
 }
 
 struct Common 
@@ -42,7 +42,7 @@ fn main(input: VertexIn) -> VertexOut {
     
     output.vPos = mvp * vec4<f32>(pos, 1.0);
     output.vNormal = (u_instance.model * vec4(input.aNormal, 0.0)).xyz;
-    output.vCol = input.aCol;
+    output.vUv = input.aUv;
 
     return output;
 }

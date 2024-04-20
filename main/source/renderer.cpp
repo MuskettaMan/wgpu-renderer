@@ -80,6 +80,7 @@ void Renderer::Render() const
 
     _commonData.view = glm::inverse(camMat);
     _commonData.vp = _commonData.proj * _commonData.view;
+    _commonData.time = glfwGetTime();
     _queue.WriteBuffer(_commonBuf, 0, &_commonData, sizeof(_commonData));
 
     wgpu::TextureView backBufView = _swapChain.GetCurrentTextureView();
@@ -104,9 +105,6 @@ void Renderer::Render() const
     depthStencilAttachment.stencilLoadOp = wgpu::LoadOp::Undefined;
     depthStencilAttachment.stencilStoreOp = wgpu::StoreOp::Undefined;
     depthStencilAttachment.stencilReadOnly = true;
-
-    _commonData.time = glfwGetTime();
-    _queue.WriteBuffer(_commonBuf, offsetof(Common, time), &_commonData.time, sizeof(Common::time));
 
     wgpu::CommandEncoderDescriptor ceDesc; 
     ceDesc.label = "Command encoder";
@@ -285,17 +283,21 @@ void Renderer::CreatePipelineAndBuffers()
 
 
     // Create mesh bind group layout.
-    wgpu::BindGroupLayoutEntry bgLayoutEntryMesh{};
-    bgLayoutEntryMesh.binding = 0;
-    bgLayoutEntryMesh.visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntryMesh.texture.sampleType = wgpu::TextureSampleType::Float;
-    bgLayoutEntryMesh.texture.viewDimension = wgpu::TextureViewDimension::e2D;
-    bgLayoutEntryMesh.texture.multisampled = false;
+    std::array<wgpu::BindGroupLayoutEntry, 2> bgLayoutEntriesMesh{};
+    bgLayoutEntriesMesh[0].binding = 0;
+    bgLayoutEntriesMesh[0].visibility = wgpu::ShaderStage::Fragment;
+    bgLayoutEntriesMesh[0].texture.sampleType = wgpu::TextureSampleType::Float;
+    bgLayoutEntriesMesh[0].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+    bgLayoutEntriesMesh[0].texture.multisampled = false;
+
+    bgLayoutEntriesMesh[1].binding = 1;
+    bgLayoutEntriesMesh[1].visibility = wgpu::ShaderStage::Fragment;
+    bgLayoutEntriesMesh[1].sampler.type = wgpu::SamplerBindingType::Filtering;
 
     wgpu::BindGroupLayoutDescriptor bgLayoutMeshDesc{};
     bgLayoutMeshDesc.label = "Mesh binding group layout";
-    bgLayoutMeshDesc.entryCount = 1;
-    bgLayoutMeshDesc.entries = &bgLayoutEntryMesh;
+    bgLayoutMeshDesc.entryCount = bgLayoutEntriesMesh.size();
+    bgLayoutMeshDesc.entries = bgLayoutEntriesMesh.data();
     _bgLayouts.mesh = _device.CreateBindGroupLayout(&bgLayoutMeshDesc);
 
 
@@ -311,12 +313,12 @@ void Renderer::CreatePipelineAndBuffers()
     std::vector<wgpu::VertexAttribute> vertAttrs = {};
     vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, position), 0);
     vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, normal), 1);
-    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, color), 2);
+    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x2, offsetof(Vertex, uv), 2);
 
     wgpu::VertexBufferLayout vertexBufferLayout{};
     vertexBufferLayout.arrayStride = sizeof(Vertex);
     vertexBufferLayout.attributeCount = vertAttrs.size();
-    vertexBufferLayout.attributes = vertAttrs.data();
+    vertexBufferLayout.attributes = vertAttrs.data(); 
     vertexBufferLayout.stepMode = wgpu::VertexStepMode::Vertex;
      
     wgpu::BlendState blend{}; 
@@ -358,7 +360,7 @@ void Renderer::CreatePipelineAndBuffers()
     rpDesc.primitive.frontFace = wgpu::FrontFace::CCW;
     rpDesc.primitive.cullMode = wgpu::CullMode::None;
     rpDesc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-    rpDesc.primitive.stripIndexFormat = wgpu::IndexFormat::Undefined;
+    rpDesc.primitive.stripIndexFormat = wgpu::IndexFormat::Undefined; 
 
     wgpu::DepthStencilState depthState{};
     depthState.depthCompare = wgpu::CompareFunction::Less;
@@ -371,13 +373,13 @@ void Renderer::CreatePipelineAndBuffers()
 
 
     _pipeline = _device.CreateRenderPipeline(&rpDesc);
-}
+} 
 
 wgpu::Buffer Renderer::CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage, const char* label)
 {
     wgpu::BufferDescriptor desc{};
     desc.label = label;
-    desc.usage = usage | wgpu::BufferUsage::CopyDst;
+    desc.usage = usage | wgpu::BufferUsage::CopyDst; 
     desc.size = (size + 3) & ~3; // Ensure multiple of 4.
     wgpu::Buffer buffer = _device.CreateBuffer(&desc);
     _queue.WriteBuffer(buffer, 0, data, desc.size);
@@ -390,8 +392,8 @@ wgpu::Texture Renderer::CreateTexture(const tinygltf::Image& image, const std::v
     wgpu::TextureDescriptor textureDesc{};
     textureDesc.dimension = wgpu::TextureDimension::e2D;
     textureDesc.size = { static_cast<uint32_t>(image.width), static_cast<uint32_t>(image.height), 1 };
-    textureDesc.format = wgpu::TextureFormat::RGBA8Unorm;
-    textureDesc.mipLevelCount = 1;
+    textureDesc.format = wgpu::TextureFormat::RGBA8UnormSrgb;
+    textureDesc.mipLevelCount = 1; 
     textureDesc.sampleCount = 1;
     textureDesc.usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding;
     textureDesc.viewFormatCount = 0;
