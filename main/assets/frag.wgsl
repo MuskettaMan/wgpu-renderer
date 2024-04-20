@@ -28,7 +28,6 @@ fn main(in: VertexOut) -> @location(0) vec4<f32> {
     let shading = u_common.lightColor * max(0.0, dot(u_common.lightDirection, in.vNormal));
     let albedo = textureSample(u_albedo, u_albedoSampler, in.vUv).rgb;
     let color = albedo * (shading + vec3<f32>(0.2));
-    //let color = vec3<f32>(in.vUv.rg, 0.0);
 
     return vec4<f32>(color, 1.0);
 }

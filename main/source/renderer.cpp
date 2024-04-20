@@ -387,13 +387,13 @@ wgpu::Buffer Renderer::CreateBuffer(const void* data, unsigned long size, wgpu::
     return buffer;
 }
 
-wgpu::Texture Renderer::CreateTexture(const tinygltf::Image& image, const std::vector<uint8_t>& data, const char* label)
+wgpu::Texture Renderer::CreateTexture(const tinygltf::Image& image, const std::vector<uint8_t>& data, uint32_t mipLevelCount, const char* label)
 {
     wgpu::TextureDescriptor textureDesc{};
     textureDesc.dimension = wgpu::TextureDimension::e2D;
     textureDesc.size = { static_cast<uint32_t>(image.width), static_cast<uint32_t>(image.height), 1 };
     textureDesc.format = wgpu::TextureFormat::RGBA8UnormSrgb;
-    textureDesc.mipLevelCount = 1; 
+    textureDesc.mipLevelCount = mipLevelCount;
     textureDesc.sampleCount = 1;
     textureDesc.usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding;
     textureDesc.viewFormatCount = 0;
@@ -403,17 +403,56 @@ wgpu::Texture Renderer::CreateTexture(const tinygltf::Image& image, const std::v
 
     wgpu::ImageCopyTexture destination{};
     destination.texture = texture;
-    destination.mipLevel = 0;
     destination.origin = { 0, 0, 0 };
     destination.aspect = wgpu::TextureAspect::All;
 
     wgpu::TextureDataLayout source{};
     source.offset = 0;
-    source.bytesPerRow = 4 * textureDesc.size.width;
-    source.rowsPerImage = textureDesc.size.height;
 
+    wgpu::Extent3D mipLevelSize = textureDesc.size;
+    std::vector<uint8_t> previousMipData{};
+    for (size_t i = 0; i < mipLevelCount; ++i)
+    {
+        std::vector<uint8_t> mipData(4 * mipLevelSize.width * mipLevelSize.height);
+        if (i == 0)
+        {
+            mipData = data;
+        }
+        else
+        {
+            // Generate mip data.
+            for (uint32_t y = 0; y < mipLevelSize.height; ++y)
+            {
+                for (uint32_t x = 0; x < mipLevelSize.width; ++x)
+                {
+                    uint8_t* p = &mipData[4 * (y * mipLevelSize.width + x)];
 
-    _queue.WriteTexture(&destination, data.data(), data.size(), &source, &textureDesc.size);
+                    uint8_t* p00 = &previousMipData[4 * ((2 * y + 0) * (2 * mipLevelSize.width) + (2 * x + 0))];
+                    uint8_t* p01 = &previousMipData[4 * ((2 * y + 0) * (2 * mipLevelSize.width) + (2 * x + 1))];
+                    uint8_t* p10 = &previousMipData[4 * ((2 * y + 1) * (2 * mipLevelSize.width) + (2 * x + 0))];
+                    uint8_t* p11 = &previousMipData[4 * ((2 * y + 1) * (2 * mipLevelSize.width) + (2 * x + 1))];
+                    
+                    // Average
+                    p[0] = (p00[0] + p01[0] + p10[0] + p11[0]) / 4;
+                    p[1] = (p00[1] + p01[1] + p10[1] + p11[1]) / 4;
+                    p[2] = (p00[2] + p01[2] + p10[2] + p11[2]) / 4;
+                }
+            }
+        }
+  
+        destination.mipLevel = i;
+
+        source.bytesPerRow = 4 * mipLevelSize.width;
+        source.rowsPerImage = mipLevelSize.height;
+
+        _queue.WriteTexture(&destination, mipData.data(), mipData.size(), &source, &mipLevelSize);
+
+        mipLevelSize.width /= 2;
+        mipLevelSize.height /= 2;
+
+        previousMipData = std::move(mipData);
+    }
+
 
     return texture;
 }

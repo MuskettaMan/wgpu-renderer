@@ -47,7 +47,7 @@ private:
     void SetupRenderTarget();
     void CreatePipelineAndBuffers();
     wgpu::Buffer CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage, const char* label);
-    wgpu::Texture CreateTexture(const tinygltf::Image& image, const std::vector<uint8_t>& data, const char* label = nullptr);
+    wgpu::Texture CreateTexture(const tinygltf::Image& image, const std::vector<uint8_t>& data, uint32_t mipLevelCount, const char* label = nullptr);
     wgpu::ShaderModule CreateShader(const std::string& path, const char* label = nullptr);
     glm::mat4 BuildSRT(const Transform& transform) const;
     bool SetupImGui();

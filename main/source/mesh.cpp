@@ -191,15 +191,17 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     mesh.indexFormat = indices32.empty() ? wgpu::IndexFormat::Uint16 : wgpu::IndexFormat::Uint32;
     mesh.indexCount = indexCount;
 
+    const uint32_t mipLevelCount = 8;
+
     const auto& albedoImage = model.images[model.textures[albedoIndex].source];
-    mesh.albedoTexture = renderer.CreateTexture(albedoImage, albedoImage.image);
+    mesh.albedoTexture = renderer.CreateTexture(albedoImage, albedoImage.image, mipLevelCount, albedoImage.name.c_str());
 
     wgpu::TextureViewDescriptor texViewDesc{};
     texViewDesc.dimension = wgpu::TextureViewDimension::e2D;
     texViewDesc.format = wgpu::TextureFormat::RGBA8UnormSrgb;
     texViewDesc.baseArrayLayer = 0;
     texViewDesc.arrayLayerCount = 1;
-    texViewDesc.mipLevelCount = 1;
+    texViewDesc.mipLevelCount = mipLevelCount;
     texViewDesc.baseMipLevel = 0;
     texViewDesc.aspect = wgpu::TextureAspect::All;
     mesh.albedoTextureView = mesh.albedoTexture.CreateView(&texViewDesc);
@@ -212,7 +214,7 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     samplerDesc.magFilter = wgpu::FilterMode::Linear;
     samplerDesc.mipmapFilter = wgpu::MipmapFilterMode::Linear;
     samplerDesc.lodMinClamp = 0.0f;
-    samplerDesc.lodMaxClamp = 1.0f;
+    samplerDesc.lodMaxClamp = static_cast<float>(mipLevelCount);
     samplerDesc.compare = wgpu::CompareFunction::Undefined;
     samplerDesc.maxAnisotropy = 1;
     mesh.albedoSampler = renderer.GetDevice().CreateSampler(&samplerDesc);
