@@ -11,6 +11,7 @@
 #include "aliases.hpp"
 #include "enum_util.hpp"
 #include "utils.hpp"
+#include <stopwatch.hpp>
 
 Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t width, int32_t height) :
     _adapter(deviceResources.adapter),
@@ -392,10 +393,10 @@ wgpu::Texture Renderer::CreateTexture(const tinygltf::Image& image, const std::v
     wgpu::TextureDescriptor textureDesc{};
     textureDesc.dimension = wgpu::TextureDimension::e2D;
     textureDesc.size = { static_cast<uint32_t>(image.width), static_cast<uint32_t>(image.height), 1 };
-    textureDesc.format = wgpu::TextureFormat::RGBA8UnormSrgb;
+    textureDesc.format = wgpu::TextureFormat::RGBA8Unorm;
     textureDesc.mipLevelCount = mipLevelCount;
     textureDesc.sampleCount = 1;
-    textureDesc.usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding;
+    textureDesc.usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::StorageBinding;
     textureDesc.viewFormatCount = 0;
     textureDesc.viewFormats = nullptr;
 
@@ -405,57 +406,120 @@ wgpu::Texture Renderer::CreateTexture(const tinygltf::Image& image, const std::v
     destination.texture = texture;
     destination.origin = { 0, 0, 0 };
     destination.aspect = wgpu::TextureAspect::All;
+    destination.mipLevel = 0;
 
     wgpu::TextureDataLayout source{};
     source.offset = 0;
+    source.bytesPerRow = 4 * image.width;
+    source.rowsPerImage = image.height;
 
-    wgpu::Extent3D mipLevelSize = textureDesc.size;
-    wgpu::Extent3D previousMipLevelSize;
-    std::vector<uint8_t> previousMipData{};
-    for (size_t i = 0; i < mipLevelCount; ++i)
+    _queue.WriteTexture(&destination, data.data(), data.size(), &source, &textureDesc.size);
+
+    std::vector<wgpu::TextureView> mipViews;
+    std::vector<wgpu::Extent3D> mipSizes;
+
+    mipSizes.resize(mipLevelCount);
+    mipSizes[0] = textureDesc.size;
+
+    mipViews.reserve(mipSizes.size());
+    for(uint32_t i = 0; i < mipLevelCount; ++i)
     {
-        std::vector<uint8_t> mipData(4 * mipLevelSize.width * mipLevelSize.height);
-        if (i == 0)
+        wgpu::TextureViewDescriptor viewDesc{};
+        std::string labelStr{ "MIP level #" + std::to_string(i) };
+        viewDesc.label = labelStr.c_str();
+        viewDesc.baseMipLevel = i;
+        viewDesc.aspect = wgpu::TextureAspect::All;
+        viewDesc.dimension = wgpu::TextureViewDimension::e2D;
+        viewDesc.format = textureDesc.format;
+        viewDesc.baseArrayLayer = 0;
+        viewDesc.arrayLayerCount = 1;
+        viewDesc.mipLevelCount = 1;
+
+        mipViews.emplace_back(texture.CreateView(&viewDesc));
+
+        if (i > 0)
         {
-            mipData.assign(data.begin(), data.end());
+            wgpu::Extent3D previousSize = mipSizes[i - 1];
+            mipSizes[i] = { previousSize.width / 2, previousSize.height / 2, previousSize.depthOrArrayLayers / 2 };
         }
-        else
-        {
-            // Generate mip data.
-            for (uint32_t y = 0; y < mipLevelSize.height; ++y)
-            {
-                for (uint32_t x = 0; x < mipLevelSize.width; ++x)
-                {
-                    uint8_t* p = &mipData[4 * (y * mipLevelSize.width + x)];
-
-                    uint8_t* p00 = &previousMipData[4 * ((2 * y + 0) * previousMipLevelSize.width + (2 * x + 0))];
-                    uint8_t* p01 = &previousMipData[4 * ((2 * y + 0) * previousMipLevelSize.width + (2 * x + 1))];
-                    uint8_t* p10 = &previousMipData[4 * ((2 * y + 1) * previousMipLevelSize.width + (2 * x + 0))];
-                    uint8_t* p11 = &previousMipData[4 * ((2 * y + 1) * previousMipLevelSize.width + (2 * x + 1))];
-                    
-                    // Average
-                    p[0] = (p00[0] + p01[0] + p10[0] + p11[0]) / 4;
-                    p[1] = (p00[1] + p01[1] + p10[1] + p11[1]) / 4;
-                    p[2] = (p00[2] + p01[2] + p10[2] + p11[2]) / 4;
-                    p[3] = (p00[3] + p01[3] + p10[3] + p11[3]) / 4;
-                }
-            }
-        }
-  
-        destination.mipLevel = i;
-
-        source.bytesPerRow = 4 * mipLevelSize.width;
-        source.rowsPerImage = mipLevelSize.height;
-
-        _queue.WriteTexture(&destination, mipData.data(), mipData.size(), &source, &mipLevelSize);
-
-        previousMipLevelSize = mipLevelSize;
-        mipLevelSize.width /= 2;
-        mipLevelSize.height /= 2;
-
-        previousMipData = std::move(mipData);
     }
 
+    // TODO: Move creating layouts to initialization.
+    std::array<wgpu::BindGroupLayoutEntry, 2> bgLayoutEntries{};
+    bgLayoutEntries[0].binding = 0;
+    bgLayoutEntries[0].visibility = wgpu::ShaderStage::Compute;
+    bgLayoutEntries[0].texture.sampleType = wgpu::TextureSampleType::Float;
+    bgLayoutEntries[0].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+    bgLayoutEntries[1].binding = 1;
+    bgLayoutEntries[1].visibility = wgpu::ShaderStage::Compute;
+    bgLayoutEntries[1].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+    bgLayoutEntries[1].storageTexture.format = wgpu::TextureFormat::RGBA8Unorm; // TODO: Check if using a different format will work. Original uses srgb.
+    bgLayoutEntries[1].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+    wgpu::BindGroupLayoutDescriptor bgLayoutDesc{};
+    bgLayoutDesc.label = "Texture binding group layout";
+    bgLayoutDesc.entryCount = bgLayoutEntries.size();
+    bgLayoutDesc.entries = bgLayoutEntries.data();
+
+    wgpu::BindGroupLayout bgLayout = _device.CreateBindGroupLayout(&bgLayoutDesc);
+
+
+    wgpu::PipelineLayoutDescriptor bgPipelineLayoutDesc{};
+    bgPipelineLayoutDesc.bindGroupLayoutCount = 1;
+    bgPipelineLayoutDesc.bindGroupLayouts = &bgLayout;
+
+    wgpu::PipelineLayout bgPipelineLayout = _device.CreatePipelineLayout(&bgPipelineLayoutDesc);
+
+    wgpu::CommandEncoderDescriptor ceDesc;
+    ceDesc.label = "Command encoder";
+
+    wgpu::CommandEncoder encoder = _device.CreateCommandEncoder(&ceDesc);
+
+    wgpu::ComputePipelineDescriptor computePipelineDesc{};
+    computePipelineDesc.label = "Mip map generation";
+    computePipelineDesc.compute.entryPoint = "main";
+    computePipelineDesc.compute.module = CreateShader("assets/mip-comp.wgsl", "Mip map generation");
+    computePipelineDesc.layout = bgPipelineLayout;
+    wgpu::ComputePipeline computePipeline = _device.CreateComputePipeline(&computePipelineDesc);
+
+    wgpu::ComputePassDescriptor computePassDesc{};
+    computePassDesc.label = "Mip map generation";
+    computePassDesc.timestampWrites = 0;
+    wgpu::ComputePassEncoder computePass = encoder.BeginComputePass(&computePassDesc);
+
+    computePass.SetPipeline(computePipeline);
+
+    for (size_t level = 1; level < mipLevelCount; ++level)
+    {
+        std::array<wgpu::BindGroupEntry, 2> bgEntries{};
+        bgEntries[0].binding = 0;
+        bgEntries[0].textureView = mipViews[level - 1];
+
+        bgEntries[1].binding = 1;
+        bgEntries[1].textureView = mipViews[level];
+
+        wgpu::BindGroupDescriptor bgDesc{};
+        bgDesc.entryCount = bgEntries.size();
+        bgDesc.entries = bgEntries.data();
+        bgDesc.layout = bgLayout;
+
+        wgpu::BindGroup bg = _device.CreateBindGroup(&bgDesc);
+
+        computePass.SetBindGroup(0, bg, 0, nullptr);
+
+        uint32_t invocationCountX = mipSizes[level].width;
+        uint32_t invocationCountY = mipSizes[level].height;
+        const uint32_t workgroupSizePerDim = 8;
+        uint32_t workgroupCountX = (invocationCountX + workgroupSizePerDim - 1) / workgroupSizePerDim;
+        uint32_t workgroupCountY = (invocationCountY + workgroupSizePerDim - 1) / workgroupSizePerDim;
+
+        computePass.DispatchWorkgroups(workgroupCountX, workgroupCountY, 1);
+    }
+    computePass.End();
+
+    wgpu::CommandBuffer commands = encoder.Finish(nullptr);
+    _queue.Submit(1, &commands);
 
     return texture;
 }

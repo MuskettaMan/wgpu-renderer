@@ -94,6 +94,7 @@
     <ClInclude Include="include\enum_util.hpp" />
     <ClInclude Include="include\mesh.hpp" />
     <ClInclude Include="include\renderer.hpp" />
+    <ClInclude Include="include\stopwatch.hpp" />
     <ClInclude Include="include\transform.hpp" />
     <ClInclude Include="include\utils.hpp" />
   </ItemGroup>

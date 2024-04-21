@@ -202,11 +202,11 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
 
     wgpu::TextureViewDescriptor texViewDesc{};
     texViewDesc.dimension = wgpu::TextureViewDimension::e2D;
-    texViewDesc.format = wgpu::TextureFormat::RGBA8UnormSrgb;
+    texViewDesc.format = wgpu::TextureFormat::RGBA8Unorm;
     texViewDesc.baseArrayLayer = 0;
     texViewDesc.arrayLayerCount = 1;
     texViewDesc.mipLevelCount = mipLevelCount;
-    texViewDesc.baseMipLevel = 0;
+    texViewDesc.baseMipLevel = 0; 
     texViewDesc.aspect = wgpu::TextureAspect::All;
     mesh.albedoTextureView = mesh.albedoTexture.CreateView(&texViewDesc);
 

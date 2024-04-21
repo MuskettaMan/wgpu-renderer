@@ -29,6 +29,6 @@ fn main(in: VertexOut) -> @location(0) vec4<f32> {
     let albedo = textureSample(u_albedo, u_albedoSampler, in.vUv).rgb;
     let color = albedo * (shading + vec3<f32>(0.2));
 
-    return vec4<f32>(color, 1.0);
+    return vec4<f32>(pow(color, vec3f(2.2)), 1.0);
 }
 
