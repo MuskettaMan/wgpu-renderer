@@ -83,6 +83,32 @@ std::vector<float> ExtractAttribute(
     return data;
 }
 
+glm::mat3x3 ComputeTBN(const Renderer::Vertex corners[3], const glm::vec3& expectedNormal)
+{
+    glm::vec3 ePos1 = corners[1].position - corners[0].position;
+    glm::vec3 ePos2 = corners[2].position - corners[0].position;
+
+    glm::vec2 eUV1 = corners[1].uv - corners[0].uv;
+    glm::vec2 eUV2 = corners[2].uv - corners[0].uv;
+
+    glm::vec3 tangent = glm::normalize(ePos1 * eUV2.y - ePos2 * eUV1.y);
+    glm::vec3 bitangent = glm::normalize(ePos2 * eUV1.x - ePos1 * eUV2.x);
+    glm::vec3 normal = glm::cross(tangent, bitangent);
+
+    if (glm::dot(normal, expectedNormal) < 0.0f)
+    {
+        tangent = -tangent;
+        bitangent = -bitangent;
+        normal = -normal;
+    }
+
+    normal = expectedNormal;
+    tangent = glm::normalize(tangent - normal * glm::dot(tangent, normal));
+    bitangent = glm::cross(normal, tangent);
+
+    return glm::mat3x3(tangent, bitangent, normal);
+}
+
 std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer)
 {
     tinygltf::TinyGLTF loader;
@@ -110,6 +136,7 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     std::vector<uint16_t> indices16{};
 
     int32_t albedoIndex;
+    int32_t normalIndex;
 
     for(size_t i = 0; i < model.meshes.size(); ++i)
     {
@@ -117,6 +144,7 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
 
         tinygltf::Material material = model.materials[primitive.material];
         albedoIndex = material.pbrMetallicRoughness.baseColorTexture.index;
+        normalIndex = material.normalTexture.index;
 
         // Get positions.
         { 
@@ -173,12 +201,29 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
 
     assert(positions.size() == uvs.size() && "Vertex attributes don't match in length");
 
-    for(size_t i = 0; i < positions.size(); ++i) 
-    {
-        vertices.emplace_back(positions[i], normals.empty() ? glm::vec3{ 0.0f } : normals[i], uvs[i]);
+    for(size_t i = 0; i < positions.size(); ++i)  
+    {  
+        vertices.emplace_back(positions[i], normals.empty() ? glm::vec3{ 0.0f } : normals[i], glm::vec3{ 0.0f }, glm::vec3{ 0.0f }, uvs[i]);
     }
 
     uint32_t indexCount = indices32.empty() ? indices16.size() : indices32.size();
+    // add tangents and bitangents
+    for(size_t i = 0; i < indexCount; i += 3)
+    {
+        Renderer::Vertex corners[3] = { 
+            vertices[indices32.empty() ? indices16[i] : indices32[i]], 
+            vertices[indices32.empty() ? indices16[i + 1] : indices32[i + 1]], 
+            vertices[indices32.empty() ? indices16[i + 2] : indices32[i + 2]] 
+        };
+        glm::mat3x3 TBN = ComputeTBN(corners, corners[0].normal); 
+
+        for(size_t j = 0; j < 3; ++j)
+        {
+            vertices[indices32.empty() ? indices16[i + j] : indices32[i + j]].tangent = TBN[0];
+            vertices[indices32.empty() ? indices16[i + j] : indices32[i + j]].bitangent = TBN[1];
+        }
+    }
+
     uint32_t indexBufferSize = (indices32.empty() ? sizeof(uint16_t) : sizeof(uint32_t)) * indexCount;
     void* indexData = nullptr;
     if (indices32.empty())
@@ -194,10 +239,11 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
 
 
     const auto& albedoImage = model.images[model.textures[albedoIndex].source];
-    
     const uint32_t mipLevelCount = bitWidth(std::max(albedoImage.width, albedoImage.height));
-
     mesh.albedoTexture = renderer.CreateTexture(albedoImage, albedoImage.image, mipLevelCount, albedoImage.name.c_str());
+
+    const auto& normalImage = model.images[model.textures[normalIndex].source];
+    mesh.normalTexture = renderer.CreateTexture(normalImage, normalImage.image, 1, normalImage.name.c_str());
 
 
     wgpu::TextureViewDescriptor texViewDesc{};
@@ -210,6 +256,16 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     texViewDesc.aspect = wgpu::TextureAspect::All;
     mesh.albedoTextureView = mesh.albedoTexture.CreateView(&texViewDesc);
 
+    wgpu::TextureViewDescriptor normalTexViewDesc{};
+    normalTexViewDesc.dimension = wgpu::TextureViewDimension::e2D;
+    normalTexViewDesc.format = wgpu::TextureFormat::RGBA8Unorm;
+    normalTexViewDesc.baseArrayLayer = 0;
+    normalTexViewDesc.arrayLayerCount = 1;
+    normalTexViewDesc.mipLevelCount = 1;
+    normalTexViewDesc.baseMipLevel = 0;
+    normalTexViewDesc.aspect = wgpu::TextureAspect::All;
+    mesh.normalTextureView = mesh.normalTexture.CreateView(&normalTexViewDesc);
+
     wgpu::SamplerDescriptor samplerDesc{};
     samplerDesc.addressModeU = wgpu::AddressMode::ClampToEdge;
     samplerDesc.addressModeV = wgpu::AddressMode::ClampToEdge;
@@ -221,14 +277,17 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     samplerDesc.lodMaxClamp = static_cast<float>(mipLevelCount);
     samplerDesc.compare = wgpu::CompareFunction::Undefined;
     samplerDesc.maxAnisotropy = 1;
-    mesh.albedoSampler = renderer.GetDevice().CreateSampler(&samplerDesc);
+    mesh.sampler = renderer.GetDevice().CreateSampler(&samplerDesc);
 
-    std::array<wgpu::BindGroupEntry, 2> bgEntries{};
+    std::array<wgpu::BindGroupEntry, 3> bgEntries{};
     bgEntries[0].binding = 0;
     bgEntries[0].textureView = mesh.albedoTextureView;
 
     bgEntries[1].binding = 1;
-    bgEntries[1].sampler = mesh.albedoSampler;
+    bgEntries[1].textureView = mesh.normalTextureView;
+
+    bgEntries[2].binding = 2;
+    bgEntries[2].sampler = mesh.sampler;
 
     wgpu::BindGroupDescriptor bgDesc{};
     bgDesc.layout = renderer.GetMeshBindGroupLayout();

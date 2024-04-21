@@ -73,6 +73,7 @@ void Renderer::Render() const
     ImGui::Begin("Inspector");
     ImGui::InputFloat3("Light direction", &_commonData.lightDirection.x);
     ImGui::ColorEdit3("Light color", &_commonData.lightColor.r);
+    ImGui::DragFloat("Normal map strength", &_commonData.normalMapStrength, 0.01f, 0.0f, 1.0f);
     ImGui::End();
 
     ImGui::Render();
@@ -284,16 +285,22 @@ void Renderer::CreatePipelineAndBuffers()
 
 
     // Create mesh bind group layout.
-    std::array<wgpu::BindGroupLayoutEntry, 2> bgLayoutEntriesMesh{};
-    bgLayoutEntriesMesh[0].binding = 0;
+    std::array<wgpu::BindGroupLayoutEntry, 3> bgLayoutEntriesMesh{};
+    bgLayoutEntriesMesh[0].binding = 0; 
     bgLayoutEntriesMesh[0].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[0].texture.sampleType = wgpu::TextureSampleType::Float;
+    bgLayoutEntriesMesh[0].texture.sampleType = wgpu::TextureSampleType::Float; 
     bgLayoutEntriesMesh[0].texture.viewDimension = wgpu::TextureViewDimension::e2D;
     bgLayoutEntriesMesh[0].texture.multisampled = false;
-
+    
     bgLayoutEntriesMesh[1].binding = 1;
     bgLayoutEntriesMesh[1].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[1].sampler.type = wgpu::SamplerBindingType::Filtering;
+    bgLayoutEntriesMesh[1].texture.sampleType = wgpu::TextureSampleType::Float;
+    bgLayoutEntriesMesh[1].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+    bgLayoutEntriesMesh[1].texture.multisampled = false;
+
+    bgLayoutEntriesMesh[2].binding = 2;
+    bgLayoutEntriesMesh[2].visibility = wgpu::ShaderStage::Fragment;
+    bgLayoutEntriesMesh[2].sampler.type = wgpu::SamplerBindingType::Filtering;
 
     wgpu::BindGroupLayoutDescriptor bgLayoutMeshDesc{};
     bgLayoutMeshDesc.label = "Mesh binding group layout";
@@ -314,7 +321,9 @@ void Renderer::CreatePipelineAndBuffers()
     std::vector<wgpu::VertexAttribute> vertAttrs = {};
     vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, position), 0);
     vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, normal), 1);
-    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x2, offsetof(Vertex, uv), 2);
+    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, tangent), 2);
+    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, bitangent), 3);
+    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x2, offsetof(Vertex, uv), 4);
 
     wgpu::VertexBufferLayout vertexBufferLayout{};
     vertexBufferLayout.arrayStride = sizeof(Vertex);
@@ -402,6 +411,7 @@ wgpu::Texture Renderer::CreateTexture(const tinygltf::Image& image, const std::v
 
     auto texture = _device.CreateTexture(&textureDesc);
 
+
     wgpu::ImageCopyTexture destination{};
     destination.texture = texture;
     destination.origin = { 0, 0, 0 };
@@ -414,6 +424,11 @@ wgpu::Texture Renderer::CreateTexture(const tinygltf::Image& image, const std::v
     source.rowsPerImage = image.height;
 
     _queue.WriteTexture(&destination, data.data(), data.size(), &source, &textureDesc.size);
+
+    if (mipLevelCount == 1)
+    {
+        return texture;
+    }
 
     std::vector<wgpu::TextureView> mipViews;
     std::vector<wgpu::Extent3D> mipSizes;

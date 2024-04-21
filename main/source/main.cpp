@@ -84,6 +84,7 @@ EM_BOOL em_render(double time, void* userData)
         {
             entt::entity entity = g_registry.create();
             Transform& transform = g_registry.emplace<Transform>(entity);
+            transform.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3{ 1.0f, 0.0f, 0.0f });
             auto& mesh = g_registry.emplace<Mesh>(entity);
 
             transform.scale = glm::vec3{ 2.0f };

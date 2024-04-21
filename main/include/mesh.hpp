@@ -14,7 +14,11 @@ struct Mesh
 
     wgpu::Texture albedoTexture;
     wgpu::TextureView albedoTextureView;
-    wgpu::Sampler albedoSampler;
+
+    wgpu::Texture normalTexture;
+    wgpu::TextureView normalTextureView;
+
+    wgpu::Sampler sampler;
     wgpu::BindGroup bindGroup;
 
     static std::optional<Mesh> CreateMesh(const std::string& path, Renderer& renderer);

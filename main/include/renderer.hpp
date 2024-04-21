@@ -19,6 +19,8 @@ public:
     {
         glm::vec3 position;
         glm::vec3 normal;
+        glm::vec3 tangent;
+        glm::vec3 bitangent;
         glm::vec2 uv;
     };
 
@@ -81,7 +83,7 @@ private:
     int32_t _width = 1280;
     int32_t _height = 720;
 
-    wgpu::TextureFormat _swapChainFormat{ wgpu::TextureFormat::BGRA8Unorm };
+    wgpu::TextureFormat _swapChainFormat{ wgpu::TextureFormat::BGRA8Unorm }; 
     const wgpu::TextureFormat DEPTH_STENCIL_FORMAT{ wgpu::TextureFormat::Depth24Plus };
 
     Camera _camera;
@@ -93,7 +95,7 @@ private:
     {
         glm::mat4 proj;
         glm::mat4 view;
-        glm::mat4 vp;
+        glm::mat4 vp; 
 
         glm::vec3 lightDirection;
         float padding[1];
@@ -101,6 +103,8 @@ private:
         glm::vec3 lightColor;
 
         float time;
+        float normalMapStrength;
+        glm::vec3 _padding2;
 
     };
 
