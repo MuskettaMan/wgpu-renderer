@@ -137,14 +137,30 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
 
     int32_t albedoIndex;
     int32_t normalIndex;
+    int32_t metallicIndex;
+    int32_t roughnessIndex;
+    int32_t aoIndex;
+    int32_t emissiveIndex;
+    Material material{};
 
     for(size_t i = 0; i < model.meshes.size(); ++i)
     {
         tinygltf::Primitive primitive = model.meshes[i].primitives[0];
 
-        tinygltf::Material material = model.materials[primitive.material];
-        albedoIndex = material.pbrMetallicRoughness.baseColorTexture.index;
-        normalIndex = material.normalTexture.index;
+        tinygltf::Material gltfMaterial = model.materials[primitive.material];
+        albedoIndex = gltfMaterial.pbrMetallicRoughness.baseColorTexture.index;
+        normalIndex = gltfMaterial.normalTexture.index;
+        metallicIndex = gltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index;
+        roughnessIndex = gltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index;
+        aoIndex = gltfMaterial.occlusionTexture.index;
+        emissiveIndex = gltfMaterial.emissiveTexture.index;
+        material = {
+            glm::vec3{ gltfMaterial.pbrMetallicRoughness.baseColorFactor[0], gltfMaterial.pbrMetallicRoughness.baseColorFactor[1], gltfMaterial.pbrMetallicRoughness.baseColorFactor[2] },
+            static_cast<float>(gltfMaterial.pbrMetallicRoughness.metallicFactor),
+            static_cast<float>(gltfMaterial.pbrMetallicRoughness.roughnessFactor),
+            1.0f,
+            static_cast<float>(gltfMaterial.emissiveFactor[0])
+        };
 
         // Get positions.
         { 
@@ -237,6 +253,7 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     mesh.indexFormat = indices32.empty() ? wgpu::IndexFormat::Uint16 : wgpu::IndexFormat::Uint32;
     mesh.indexCount = indexCount;
 
+    mesh.materialBuf = renderer.CreateBuffer(&material, sizeof(Material), wgpu::BufferUsage::Uniform, "Material buffer");
 
     const auto& albedoImage = model.images[model.textures[albedoIndex].source];
     const uint32_t mipLevelCount = bitWidth(std::max(albedoImage.width, albedoImage.height));
@@ -244,6 +261,18 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
 
     const auto& normalImage = model.images[model.textures[normalIndex].source];
     mesh.normalTexture = renderer.CreateTexture(normalImage, normalImage.image, 1, normalImage.name.c_str());
+
+    const auto& metallicImage = model.images[model.textures[metallicIndex].source];
+    mesh.metallicTexture = renderer.CreateTexture(metallicImage, metallicImage.image, 1, metallicImage.name.c_str());
+
+    const auto& roughnessImage = model.images[model.textures[roughnessIndex].source];
+    mesh.roughnessTexture = renderer.CreateTexture(roughnessImage, roughnessImage.image, 1, roughnessImage.name.c_str());
+
+    const auto& aoImage = model.images[model.textures[aoIndex].source];
+    mesh.aoTexture = renderer.CreateTexture(aoImage, aoImage.image, 1, aoImage.name.c_str());
+
+    const auto& emissiveImage = model.images[model.textures[emissiveIndex].source];
+    mesh.emissiveTexture = renderer.CreateTexture(emissiveImage, emissiveImage.image, mipLevelCount, emissiveImage.name.c_str());
 
 
     wgpu::TextureViewDescriptor texViewDesc{};
@@ -255,16 +284,14 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     texViewDesc.baseMipLevel = 0; 
     texViewDesc.aspect = wgpu::TextureAspect::All;
     mesh.albedoTextureView = mesh.albedoTexture.CreateView(&texViewDesc);
+    mesh.emissiveTextureView = mesh.emissiveTexture.CreateView(&texViewDesc);
 
-    wgpu::TextureViewDescriptor normalTexViewDesc{};
-    normalTexViewDesc.dimension = wgpu::TextureViewDimension::e2D;
-    normalTexViewDesc.format = wgpu::TextureFormat::RGBA8Unorm;
-    normalTexViewDesc.baseArrayLayer = 0;
-    normalTexViewDesc.arrayLayerCount = 1;
-    normalTexViewDesc.mipLevelCount = 1;
-    normalTexViewDesc.baseMipLevel = 0;
-    normalTexViewDesc.aspect = wgpu::TextureAspect::All;
-    mesh.normalTextureView = mesh.normalTexture.CreateView(&normalTexViewDesc);
+    texViewDesc.mipLevelCount = 1;
+
+    mesh.normalTextureView = mesh.normalTexture.CreateView(&texViewDesc);
+    mesh.metallicTextureView = mesh.metallicTexture.CreateView(&texViewDesc);
+    mesh.roughnessTextureView = mesh.roughnessTexture.CreateView(&texViewDesc);
+    mesh.aoTextureView = mesh.aoTexture.CreateView(&texViewDesc);
 
     wgpu::SamplerDescriptor samplerDesc{};
     samplerDesc.addressModeU = wgpu::AddressMode::ClampToEdge;
@@ -279,15 +306,31 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     samplerDesc.maxAnisotropy = 1;
     mesh.sampler = renderer.GetDevice().CreateSampler(&samplerDesc);
 
-    std::array<wgpu::BindGroupEntry, 3> bgEntries{};
+    std::array<wgpu::BindGroupEntry, 8> bgEntries{};
     bgEntries[0].binding = 0;
-    bgEntries[0].textureView = mesh.albedoTextureView;
-
+    bgEntries[0].buffer = mesh.materialBuf;
+    
     bgEntries[1].binding = 1;
-    bgEntries[1].textureView = mesh.normalTextureView;
+    bgEntries[1].sampler = mesh.sampler;
 
     bgEntries[2].binding = 2;
-    bgEntries[2].sampler = mesh.sampler;
+    bgEntries[2].textureView = mesh.albedoTextureView;
+
+    bgEntries[3].binding = 3;
+    bgEntries[3].textureView = mesh.normalTextureView;
+
+    bgEntries[4].binding = 4;
+    bgEntries[4].textureView = mesh.metallicTextureView;
+
+    bgEntries[5].binding = 5;
+    bgEntries[5].textureView = mesh.roughnessTextureView;
+
+    bgEntries[6].binding = 6;
+    bgEntries[6].textureView = mesh.aoTextureView;
+
+    bgEntries[7].binding = 7;
+    bgEntries[7].textureView = mesh.emissiveTextureView;
+
 
     wgpu::BindGroupDescriptor bgDesc{};
     bgDesc.layout = renderer.GetMeshBindGroupLayout();

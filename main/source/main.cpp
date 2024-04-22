@@ -48,27 +48,27 @@ void RequestDeviceResources(Renderer::DeviceResources& deviceResources)
         deviceDesc.requiredFeatureCount = 0;
         deviceDesc.requiredLimits = nullptr;
         deviceDesc.nextInChain = nullptr;
-        deviceDesc.defaultQueue.nextInChain = nullptr;
+        deviceDesc.defaultQueue.nextInChain = nullptr;  
         deviceDesc.defaultQueue.label = "Default queue";
 
         deviceResources->adapter.RequestDevice(&deviceDesc, [](WGPURequestDeviceStatus status, WGPUDeviceImpl* deviceHandle, char const* message, void* userData)
         {
-            Renderer::DeviceResources* deviceResources{ reinterpret_cast<Renderer::DeviceResources*>(userData) };
+            Renderer::DeviceResources* deviceResources{ reinterpret_cast<Renderer::DeviceResources*>(userData) }; 
             if (status != WGPURequestDeviceStatus_Success)
             {
                 std::cout << "Failed requesting device: " << message << std::endl;
-                return;
-            }
+                return; 
+            } 
 
-            deviceResources->device = wgpu::Device(deviceHandle);
-            deviceResources->queue = deviceResources->device.GetQueue();
-
+            deviceResources->device = wgpu::Device(deviceHandle);  
+            deviceResources->queue = deviceResources->device.GetQueue(); 
+              
         }, deviceResources);
 
     }, &deviceResources);
 }
 
-EM_BOOL em_render(double time, void* userData)
+EM_BOOL em_render(double time, void* userData)  
 {
     static bool initialized = false;
     GLFWwindow* window = reinterpret_cast<GLFWwindow*>(userData);
@@ -76,7 +76,7 @@ EM_BOOL em_render(double time, void* userData)
     {
         int32_t width, height;
         glfwGetWindowSize(window, &width, &height);
-
+        
         g_renderer = std::make_unique<Renderer>(g_resources, window, width, height);
         initialized = true;
 
@@ -84,7 +84,7 @@ EM_BOOL em_render(double time, void* userData)
         {
             entt::entity entity = g_registry.create();
             Transform& transform = g_registry.emplace<Transform>(entity);
-            transform.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3{ 1.0f, 0.0f, 0.0f });
+            transform.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3{ 1.0f, 0.0f, 0.0f }); //* glm::angleAxis(glm::radians(90.0f), glm::vec3{ 0.0f, 0.0f, 1.0f });
             auto& mesh = g_registry.emplace<Mesh>(entity);
 
             transform.scale = glm::vec3{ 2.0f };
@@ -100,6 +100,17 @@ EM_BOOL em_render(double time, void* userData)
                 mesh = optMesh.value();
             }
 
+        }
+
+        for (int i = 0; i < MAX_POINT_LIGHTS; ++i)
+        {
+            entt::entity lightEntity = g_registry.create();
+            Transform& transform = g_registry.emplace<Transform>(lightEntity);
+            transform.translation = glm::vec3{ 0.0f, 0.0f, 0.0f };
+
+            auto& light = g_registry.emplace<Renderer::PointLight>(lightEntity);
+            light.color = glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f };
+            light.position = transform.translation;
         }
     }
     else if(!initialized)
@@ -145,11 +156,46 @@ EM_BOOL em_render(double time, void* userData)
     }
 
 
-    auto view = g_registry.view<Mesh, Transform>();
-    for(auto&& [entity, mesh, transform] : view.each())
     {
-        g_renderer->DrawMesh(mesh, transform);
+        auto view = g_registry.view<Mesh, Transform>();
+        for (auto&& [entity, mesh, transform] : view.each())
+        {
+            g_renderer->DrawMesh(mesh, transform);
+        }
+    } 
+    {
+        auto view = g_registry.view<Renderer::PointLight, Transform>();
+        uint32_t i = 0;
+        for (auto&& [entity, light, transform] : view.each()) 
+        {
+            g_renderer->SetLight(i, light.color, transform.translation);
+
+           ++i;
+        } 
     }
+
+    g_renderer->BeginEditor();
+
+    ImGui::Begin("Light");   
+    {
+        auto view = g_registry.view<Renderer::PointLight, Transform>();
+        uint32_t i = 0;
+        for (entt::entity entity : view) 
+        {
+            auto [light, transform] = view.get<Renderer::PointLight, Transform>(entity);
+            std::string name = "Light " + std::to_string(i);
+            ImGui::BeginChild(name.c_str(), ImVec2(0, 80), true);
+            ImGui::Text("Light %d", entity);
+            ImGui::ColorEdit4("Color", &light.color.x);
+            ImGui::DragFloat3("Position", &transform.translation.x);   
+            ImGui::EndChild();
+            
+            ++i;
+        }
+    }
+    ImGui::End();
+
+    g_renderer->EndEditor();
 
     g_renderer->Render();
 

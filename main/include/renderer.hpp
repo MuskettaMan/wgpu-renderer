@@ -11,6 +11,7 @@
 #include "transform.hpp"
 
 constexpr uint32_t MAX_INSTANCES{ 4096 };
+constexpr uint32_t MAX_POINT_LIGHTS{ 4 };
 
 class Renderer
 {
@@ -36,12 +37,22 @@ public:
     ~Renderer();
 
     void Render() const;
+    void BeginEditor() const;
+    void EndEditor() const;
     void Resize(int32_t width, int32_t height);
 
     void DrawMesh(const Mesh& mesh, const Transform& transform);
+    void SetLight(uint32_t index, const glm::vec4& color, const glm::vec3& position);
 
     Camera& GetCamera() { return _camera; }
     Transform& GetCameraTransform() { return _cameraTransform; }
+
+    struct PointLight
+    {
+        glm::vec4 color;
+        glm::vec3 position;
+        float radius;
+    };
 
 private:
     friend Mesh;
@@ -73,7 +84,7 @@ private:
     wgpu::Buffer _instanceBuf;
 
     struct
-    {
+    { 
         wgpu::BindGroupLayout standard;
         wgpu::BindGroupLayout mesh;
     } _bgLayouts;
@@ -83,7 +94,7 @@ private:
     int32_t _width = 1280;
     int32_t _height = 720;
 
-    wgpu::TextureFormat _swapChainFormat{ wgpu::TextureFormat::BGRA8Unorm }; 
+    wgpu::TextureFormat _swapChainFormat{ wgpu::TextureFormat::BGRA8Unorm };  
     const wgpu::TextureFormat DEPTH_STENCIL_FORMAT{ wgpu::TextureFormat::Depth24Plus };
 
     Camera _camera;
@@ -98,19 +109,21 @@ private:
         glm::mat4 vp; 
 
         glm::vec3 lightDirection;
-        float padding[1];
+        float time;
 
         glm::vec3 lightColor;
-
-        float time;
         float normalMapStrength;
-        glm::vec3 _padding2;
 
+        std::array<PointLight, MAX_POINT_LIGHTS> pointLights;
+        
+        glm::vec3 cameraPosition;
+        float _padding;
     };
 
     struct Instance
     {
         glm::mat4 model;
+        glm::mat4 transInvModel;
     };
 
     mutable Common _commonData;

@@ -13,7 +13,8 @@ struct VertexOut
     @location(0) vNormal: vec3<f32>,
     @location(1) vTangent: vec3<f32>,
     @location(2) vBitangent: vec3<f32>,
-    @location(3) vUv: vec2<f32>
+    @location(3) vUv: vec2<f32>,
+    @location(4) vWorldPos: vec3<f32>,
 }
 
 struct Common 
@@ -23,15 +24,18 @@ struct Common
     vp: mat4x4f,
 
     lightDirection: vec3<f32>,
-    lightColor: vec3<f32>,
-
     time: f32,
-    normalMapStrength: f32
+
+    lightColor: vec3<f32>,
+    normalMapStrength: f32,
+
+    cameraPosition: vec3<f32>,
 }
 
 struct Instance 
 {
-    model: mat4x4f
+    model: mat4x4f,
+    transInvModel: mat4x4f
 }
 
 @group(0) @binding(0) var<uniform> u_common: Common;
@@ -45,10 +49,11 @@ fn main(input: VertexIn) -> VertexOut {
     let mvp = u_common.vp * u_instance.model;
     
     output.vPos = mvp * vec4<f32>(pos, 1.0);
-    output.vNormal = (u_instance.model * vec4(input.aNormal, 0.0)).xyz;
-    output.vTangent = (u_instance.model * vec4(input.aTangent, 0.0)).xyz;
-    output.vBitangent = (u_instance.model * vec4(input.aBitangent, 0.0)).xyz;
+    output.vNormal = normalize(u_instance.transInvModel * vec4<f32>(input.aNormal, 0.0)).xyz;
+    output.vTangent = normalize(u_instance.transInvModel * vec4<f32>(input.aTangent, 0.0)).xyz;
+    output.vBitangent = normalize(u_instance.transInvModel * vec4<f32>(input.aBitangent, 0.0)).xyz;
     output.vUv = input.aUv;
+    output.vWorldPos = (u_instance.model * vec4<f32>(pos, 1.0)).xyz;
 
     return output;
 }

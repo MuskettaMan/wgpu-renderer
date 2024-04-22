@@ -22,8 +22,8 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
     _width(width),
     _height(height),
     _uniformStride(ceilToNextMultiple(sizeof(Instance), 256))
-{
-    _device.SetUncapturedErrorCallback([](WGPUErrorType error, const char* message, void* userdata)
+{ 
+    _device.SetUncapturedErrorCallback([](WGPUErrorType error, const char* message, void* userdata)  
                                        {
                                            std::cout << "Uncaptured device error - error  type: " << conv_enum_str<wgpu::ErrorType>(error) << "\n";
                                            if (message) std::cout << message;
@@ -31,17 +31,23 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
                                        }, nullptr);
 
     _queue = _device.GetQueue();
-
+     
     _queue.OnSubmittedWorkDone([](WGPUQueueWorkDoneStatus status, void* userdata)
                                {
                                    std::cout << "Queue work finished with status: " << conv_enum_str<wgpu::QueueWorkDoneStatus>(status) << std::endl;
                                }, nullptr);
-
-    _cameraTransform.translation = glm::vec3{ 0.0f, 2.0f, -3.0f };
+     
+    _cameraTransform.translation = glm::vec3{ 0.0f, 2.0f, 3.0f };
     _cameraTransform.rotation = glm::quat{ glm::vec3{ glm::radians(30.0f), 0.0f, 0.0f } };
     glm::mat4 camMat{ BuildSRT(_cameraTransform) };
-
+     
     _commonData.view = glm::inverse(camMat);
+
+    _commonData.pointLights[0] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.5f, 0.0f, 0.5f   }, 1.0f };
+    _commonData.pointLights[1] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.5f, 0.25f, -0.5f  }, 1.0f };
+    _commonData.pointLights[2] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { -0.5f, 0.5f, -0.5f }, 1.0f };
+    _commonData.pointLights[3] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { -0.5f, 1.0f, 0.5f  }, 1.0f };
+    _commonData.normalMapStrength = 0.8f;
 
     _commonBuf = CreateBuffer(&_commonData, sizeof(_commonData), wgpu::BufferUsage::Uniform, "Common uniform");
     _instanceBuf = CreateBuffer(nullptr, _uniformStride * MAX_INSTANCES, wgpu::BufferUsage::Uniform, "Instance uniform");
@@ -64,25 +70,13 @@ void Renderer::Render() const
 {
     glfwPollEvents();
 
-    ImGui_ImplWGPU_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
-    bool show = true;
-    
-    ImGui::Begin("Inspector");
-    ImGui::InputFloat3("Light direction", &_commonData.lightDirection.x);
-    ImGui::ColorEdit3("Light color", &_commonData.lightColor.r);
-    ImGui::DragFloat("Normal map strength", &_commonData.normalMapStrength, 0.01f, 0.0f, 1.0f);
-    ImGui::End();
-
-    ImGui::Render();
 
     glm::mat4 camMat{ BuildSRT(_cameraTransform) };
 
     _commonData.view = glm::inverse(camMat);
     _commonData.vp = _commonData.proj * _commonData.view;
     _commonData.time = glfwGetTime();
+    _commonData.cameraPosition = _cameraTransform.translation;
     _queue.WriteBuffer(_commonBuf, 0, &_commonData, sizeof(_commonData));
 
     wgpu::TextureView backBufView = _swapChain.GetCurrentTextureView();
@@ -96,12 +90,12 @@ void Renderer::Render() const
     colorDesc.clearValue.g = 0.3f;
     colorDesc.clearValue.b = 0.3f;
     colorDesc.clearValue.a = 1.0f;
-
+    
     wgpu::RenderPassDepthStencilAttachment depthStencilAttachment;
     depthStencilAttachment.view = _depthTextureView;
-    depthStencilAttachment.depthClearValue = 1.0f;
+    depthStencilAttachment.depthClearValue = 1.0f; 
     depthStencilAttachment.depthLoadOp = wgpu::LoadOp::Clear;
-    depthStencilAttachment.depthStoreOp = wgpu::StoreOp::Store;
+    depthStencilAttachment.depthStoreOp = wgpu::StoreOp::Store; 
     depthStencilAttachment.depthReadOnly = false;
     depthStencilAttachment.stencilClearValue = 0.f;
     depthStencilAttachment.stencilLoadOp = wgpu::LoadOp::Undefined;
@@ -112,9 +106,9 @@ void Renderer::Render() const
     ceDesc.label = "Command encoder";
 
     wgpu::CommandEncoder encoder = _device.CreateCommandEncoder(&ceDesc);
-
+     
     wgpu::RenderPassDescriptor renderPass{};
-    renderPass.label = "Main render pass";
+    renderPass.label = "Main render pass"; 
     renderPass.colorAttachmentCount = 1;
     renderPass.colorAttachments = &colorDesc;
     renderPass.depthStencilAttachment = &depthStencilAttachment;
@@ -123,14 +117,15 @@ void Renderer::Render() const
      
     pass.SetPipeline(_pipeline);
 
-    uint32_t i{ 0 };
+    uint32_t i{ 0 }; 
     while(!_drawings.empty())
     {
         auto [mesh, transform] = _drawings.front();
         _drawings.pop();
 
         Instance instance;
-        instance.model = BuildSRT(transform);
+        instance.model = BuildSRT(transform); 
+        instance.transInvModel = glm::mat4{ glm::mat3{ glm::transpose(glm::inverse(instance.model)) } };
 
         uint32_t dynamicOffset{ i * _uniformStride };
         _queue.WriteBuffer(_instanceBuf, dynamicOffset, &instance, sizeof(instance));
@@ -169,6 +164,18 @@ void Renderer::Render() const
     _queue.Submit(1, &commands);
 }
 
+void Renderer::BeginEditor() const
+{
+    ImGui_ImplWGPU_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+}
+
+void Renderer::EndEditor() const
+{
+    ImGui::Render();
+}
+
 void Renderer::Resize(int32_t width, int32_t height)
 {
     _width = width;
@@ -186,6 +193,19 @@ void Renderer::Resize(int32_t width, int32_t height)
 void Renderer::DrawMesh(const Mesh& mesh, const Transform& transform)
 {
     _drawings.emplace(mesh, transform);
+}
+
+void Renderer::SetLight(uint32_t index, const glm::vec4& color, const glm::vec3& position)
+{
+    if (index >= MAX_POINT_LIGHTS)
+    {
+        std::cerr << "Trying to set a light out of bounds" << std::endl;
+        return;
+    }
+
+    _commonData.pointLights[index].color = color;
+    _commonData.pointLights[index].position = position;
+
 }
 
 void Renderer::SetupRenderTarget()
@@ -281,26 +301,56 @@ void Renderer::CreatePipelineAndBuffers()
     bgDesc.layout = _bgLayouts.standard;
     bgDesc.entryCount = bgLayoutDesc.entryCount;
     bgDesc.entries = bgEntry.data();
-    _standardBindGroup = _device.CreateBindGroup(&bgDesc);
+    _standardBindGroup = _device.CreateBindGroup(&bgDesc); 
 
 
     // Create mesh bind group layout.
-    std::array<wgpu::BindGroupLayoutEntry, 3> bgLayoutEntriesMesh{};
-    bgLayoutEntriesMesh[0].binding = 0; 
+    std::array<wgpu::BindGroupLayoutEntry, 8> bgLayoutEntriesMesh{};
+    bgLayoutEntriesMesh[0].binding = 0;
     bgLayoutEntriesMesh[0].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[0].texture.sampleType = wgpu::TextureSampleType::Float; 
-    bgLayoutEntriesMesh[0].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-    bgLayoutEntriesMesh[0].texture.multisampled = false;
-    
+    bgLayoutEntriesMesh[0].buffer.type = wgpu::BufferBindingType::Uniform;
+    bgLayoutEntriesMesh[0].buffer.minBindingSize = sizeof(Material);
+
     bgLayoutEntriesMesh[1].binding = 1;
     bgLayoutEntriesMesh[1].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[1].texture.sampleType = wgpu::TextureSampleType::Float;
-    bgLayoutEntriesMesh[1].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-    bgLayoutEntriesMesh[1].texture.multisampled = false;
+    bgLayoutEntriesMesh[1].sampler.type = wgpu::SamplerBindingType::Filtering;
 
     bgLayoutEntriesMesh[2].binding = 2;
     bgLayoutEntriesMesh[2].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[2].sampler.type = wgpu::SamplerBindingType::Filtering;
+    bgLayoutEntriesMesh[2].texture.sampleType = wgpu::TextureSampleType::Float; 
+    bgLayoutEntriesMesh[2].texture.viewDimension = wgpu::TextureViewDimension::e2D;  
+    bgLayoutEntriesMesh[2].texture.multisampled = false;
+      
+    bgLayoutEntriesMesh[3].binding = 3; 
+    bgLayoutEntriesMesh[3].visibility = wgpu::ShaderStage::Fragment;
+    bgLayoutEntriesMesh[3].texture.sampleType = wgpu::TextureSampleType::Float;
+    bgLayoutEntriesMesh[3].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+    bgLayoutEntriesMesh[3].texture.multisampled = false;
+
+    bgLayoutEntriesMesh[4].binding = 4;
+    bgLayoutEntriesMesh[4].visibility = wgpu::ShaderStage::Fragment;
+    bgLayoutEntriesMesh[4].texture.sampleType = wgpu::TextureSampleType::Float;
+    bgLayoutEntriesMesh[4].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+    bgLayoutEntriesMesh[4].texture.multisampled = false;
+
+    bgLayoutEntriesMesh[5].binding = 5;
+    bgLayoutEntriesMesh[5].visibility = wgpu::ShaderStage::Fragment;
+    bgLayoutEntriesMesh[5].texture.sampleType = wgpu::TextureSampleType::Float;
+    bgLayoutEntriesMesh[5].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+    bgLayoutEntriesMesh[5].texture.multisampled = false;
+
+    bgLayoutEntriesMesh[6].binding = 6;
+    bgLayoutEntriesMesh[6].visibility = wgpu::ShaderStage::Fragment;
+    bgLayoutEntriesMesh[6].texture.sampleType = wgpu::TextureSampleType::Float;
+    bgLayoutEntriesMesh[6].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+    bgLayoutEntriesMesh[6].texture.multisampled = false;
+
+    bgLayoutEntriesMesh[7].binding = 7;
+    bgLayoutEntriesMesh[7].visibility = wgpu::ShaderStage::Fragment;
+    bgLayoutEntriesMesh[7].texture.sampleType = wgpu::TextureSampleType::Float;
+    bgLayoutEntriesMesh[7].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+    bgLayoutEntriesMesh[7].texture.multisampled = false;
+
 
     wgpu::BindGroupLayoutDescriptor bgLayoutMeshDesc{};
     bgLayoutMeshDesc.label = "Mesh binding group layout";
