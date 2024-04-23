@@ -59,6 +59,7 @@ private:
 
     void SetupRenderTarget();
     void CreatePipelineAndBuffers();
+    void SetupHDRPipeline();
     wgpu::Buffer CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage, const char* label);
     wgpu::Texture CreateTexture(const tinygltf::Image& image, const std::vector<uint8_t>& data, uint32_t mipLevelCount, const char* label = nullptr);
     wgpu::ShaderModule CreateShader(const std::string& path, const char* label = nullptr);
@@ -76,10 +77,14 @@ private:
     wgpu::SwapChain _swapChain;
     wgpu::Texture _msaaTarget;
     wgpu::TextureView _msaaView;
+    wgpu::Sampler _hdrSampler;
+    wgpu::Texture _hdrTarget;
+    wgpu::TextureView _hdrView;
     wgpu::Texture _depthTexture;
     wgpu::TextureView _depthTextureView;
 
     wgpu::RenderPipeline _pipeline;
+    wgpu::RenderPipeline _pipelineHDR;
     wgpu::Buffer _commonBuf;
     wgpu::Buffer _instanceBuf;
 
@@ -89,7 +94,10 @@ private:
         wgpu::BindGroupLayout mesh;
     } _bgLayouts;
 
+    wgpu::BindGroupLayout _hdrBindGroupLayout;
+
     wgpu::BindGroup _standardBindGroup;
+    wgpu::BindGroup _hdrBindGroup;
 
     int32_t _width = 1280;
     int32_t _height = 720;
