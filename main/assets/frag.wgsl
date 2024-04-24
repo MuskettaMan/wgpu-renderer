@@ -44,15 +44,15 @@ struct Material
 
 @group(0) @binding(0) var<uniform> u_common: Common;
 
-@group(1) @binding(0) var<uniform> u_material: Material;
-@group(1) @binding(1) var u_sampler: sampler;
+@group(2) @binding(0) var<uniform> u_material: Material;
+@group(2) @binding(1) var u_sampler: sampler;
 
-@group(1) @binding(2) var u_albedo: texture_2d<f32>;
-@group(1) @binding(3) var u_normal: texture_2d<f32>;
-@group(1) @binding(4) var u_metallic: texture_2d<f32>;
-@group(1) @binding(5) var u_roughness: texture_2d<f32>;
-@group(1) @binding(6) var u_ao: texture_2d<f32>;
-@group(1) @binding(7) var u_emissive: texture_2d<f32>;
+@group(2) @binding(2) var u_albedo: texture_2d<f32>;
+@group(2) @binding(3) var u_normal: texture_2d<f32>;
+@group(2) @binding(4) var u_metallic: texture_2d<f32>;
+@group(2) @binding(5) var u_roughness: texture_2d<f32>;
+@group(2) @binding(6) var u_ao: texture_2d<f32>;
+@group(2) @binding(7) var u_emissive: texture_2d<f32>;
 
 fn GetNormal(in: VertexOut) -> vec3<f32> 
 {

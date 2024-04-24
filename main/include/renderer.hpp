@@ -10,20 +10,13 @@
 #include "mesh.hpp"
 #include "transform.hpp"
 
-constexpr uint32_t MAX_INSTANCES{ 4096 };
 constexpr uint32_t MAX_POINT_LIGHTS{ 4 };
+
+class PBRPass;
 
 class Renderer
 {
 public:
-    struct Vertex
-    {
-        glm::vec3 position;
-        glm::vec3 normal;
-        glm::vec3 tangent;
-        glm::vec3 bitangent;
-        glm::vec2 uv;
-    };
 
     struct DeviceResources
     {
@@ -46,6 +39,18 @@ public:
 
     Camera& GetCamera() { return _camera; }
     Transform& GetCameraTransform() { return _cameraTransform; }
+    wgpu::Buffer CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage, const char* label);
+    wgpu::ShaderModule CreateShader(const std::string& path, const char* label = nullptr);
+    const wgpu::Device& Device() const { return _device; }
+    const wgpu::Queue& Queue() const { return _queue; }
+    const wgpu::TextureView HDRView() const { return _hdrView; }
+    const wgpu::TextureView MSAAView() const { return _msaaView; }
+    const wgpu::TextureFormat DEPTH_STENCIL_FORMAT{ wgpu::TextureFormat::Depth24Plus };
+    const wgpu::RenderPassDepthStencilAttachment& DepthStencilAttachment() const { return _depthStencilAttachment; }
+    glm::mat4 BuildSRT(const Transform& transform) const; // TODO: Maybe move out of here.
+    const wgpu::BindGroup CommonBindGroup() const { return _commonBindGroup; }
+    const wgpu::BindGroupLayout CommonBindGroupLayout() const { return _commonBGLayout; }
+    const PBRPass& PBRRenderPass() const { return *_pbrPass; }
 
     struct PointLight
     {
@@ -60,14 +65,10 @@ private:
     void SetupRenderTarget();
     void CreatePipelineAndBuffers();
     void SetupHDRPipeline();
-    wgpu::Buffer CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage, const char* label);
     wgpu::Texture CreateTexture(const tinygltf::Image& image, const std::vector<uint8_t>& data, uint32_t mipLevelCount, const char* label = nullptr);
-    wgpu::ShaderModule CreateShader(const std::string& path, const char* label = nullptr);
-    glm::mat4 BuildSRT(const Transform& transform) const;
     bool SetupImGui();
 
-    wgpu::Device& GetDevice() { return _device; }
-    wgpu::BindGroupLayout& GetMeshBindGroupLayout() { return _bgLayouts.mesh; }
+    std::unique_ptr<PBRPass> _pbrPass;
 
     wgpu::Adapter _adapter;
     wgpu::Instance _instance;
@@ -83,32 +84,24 @@ private:
     wgpu::Texture _depthTexture;
     wgpu::TextureView _depthTextureView;
 
-    wgpu::RenderPipeline _pipeline;
     wgpu::RenderPipeline _pipelineHDR;
     wgpu::Buffer _commonBuf;
-    wgpu::Buffer _instanceBuf;
+    wgpu::RenderPassDepthStencilAttachment _depthStencilAttachment;
 
-    struct
-    { 
-        wgpu::BindGroupLayout standard;
-        wgpu::BindGroupLayout mesh;
-    } _bgLayouts;
-
+    wgpu::BindGroupLayout _commonBGLayout;
     wgpu::BindGroupLayout _hdrBindGroupLayout;
 
-    wgpu::BindGroup _standardBindGroup;
+    wgpu::BindGroup _commonBindGroup;
     wgpu::BindGroup _hdrBindGroup;
 
     int32_t _width = 1280;
     int32_t _height = 720;
 
     wgpu::TextureFormat _swapChainFormat{ wgpu::TextureFormat::BGRA8Unorm };  
-    const wgpu::TextureFormat DEPTH_STENCIL_FORMAT{ wgpu::TextureFormat::Depth24Plus };
 
     Camera _camera;
     Transform _cameraTransform;
 
-    uint32_t _uniformStride;
 
     struct Common
     {
@@ -128,13 +121,7 @@ private:
         float _padding;
     };
 
-    struct Instance
-    {
-        glm::mat4 model;
-        glm::mat4 transInvModel;
-    };
 
     mutable Common _commonData;
 
-    mutable std::queue<std::tuple<Mesh, Transform>> _drawings;
 };

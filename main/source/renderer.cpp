@@ -12,6 +12,7 @@
 #include "enum_util.hpp"
 #include "utils.hpp"
 #include <stopwatch.hpp>
+#include "graphics/pbr_pass.hpp"
 
 Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t width, int32_t height) :
     _adapter(deviceResources.adapter),
@@ -20,8 +21,7 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
     _queue(deviceResources.queue),
     _window(window),
     _width(width),
-    _height(height),
-    _uniformStride(ceilToNextMultiple(sizeof(Instance), 256))
+    _height(height)
 { 
     _device.SetUncapturedErrorCallback([](WGPUErrorType error, const char* message, void* userdata)  
                                        {
@@ -50,22 +50,23 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
     _commonData.normalMapStrength = 0.8f;
 
     _commonBuf = CreateBuffer(&_commonData, sizeof(_commonData), wgpu::BufferUsage::Uniform, "Common uniform");
-    _instanceBuf = CreateBuffer(nullptr, _uniformStride * MAX_INSTANCES, wgpu::BufferUsage::Uniform, "Instance uniform");
+
 
     CreatePipelineAndBuffers();
     SetupHDRPipeline();
     Resize(_width, _height);
+
 
     if (!SetupImGui())
     {
         std::cout << "Failed initalizing ImGui" << std::endl;
         return;
     }
+
+    _pbrPass = std::make_unique<PBRPass>(*this);
 }
 
-Renderer::~Renderer()
-{
-}
+Renderer::~Renderer() = default;
 
 void Renderer::Render() const
 {
@@ -80,67 +81,13 @@ void Renderer::Render() const
     _commonData.cameraPosition = _cameraTransform.translation;
     _queue.WriteBuffer(_commonBuf, 0, &_commonData, sizeof(_commonData));
 
-    wgpu::RenderPassColorAttachment colorDesc{};
-    colorDesc.view = _msaaView;
-    colorDesc.resolveTarget = _hdrView;
-    colorDesc.loadOp = wgpu::LoadOp::Clear;
-    colorDesc.storeOp = wgpu::StoreOp::Discard; // TODO: Review difference with store.
-    colorDesc.clearValue.r = 0.3f;
-    colorDesc.clearValue.g = 0.3f;
-    colorDesc.clearValue.b = 0.3f;
-    colorDesc.clearValue.a = 1.0f;
-    
-    wgpu::RenderPassDepthStencilAttachment depthStencilAttachment;
-    depthStencilAttachment.view = _depthTextureView;
-    depthStencilAttachment.depthClearValue = 1.0f; 
-    depthStencilAttachment.depthLoadOp = wgpu::LoadOp::Clear;
-    depthStencilAttachment.depthStoreOp = wgpu::StoreOp::Store; 
-    depthStencilAttachment.depthReadOnly = false;
-    depthStencilAttachment.stencilClearValue = 0.f;
-    depthStencilAttachment.stencilLoadOp = wgpu::LoadOp::Undefined;
-    depthStencilAttachment.stencilStoreOp = wgpu::StoreOp::Undefined;
-    depthStencilAttachment.stencilReadOnly = true;
-
     wgpu::CommandEncoderDescriptor ceDesc; 
     ceDesc.label = "Command encoder";
 
     wgpu::CommandEncoder encoder = _device.CreateCommandEncoder(&ceDesc);
-     
-    wgpu::RenderPassDescriptor renderPass{};
-    renderPass.label = "Main render pass"; 
-    renderPass.colorAttachmentCount = 1;
-    renderPass.colorAttachments = &colorDesc;
-    renderPass.depthStencilAttachment = &depthStencilAttachment;
 
-    wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPass);
-     
-    pass.SetPipeline(_pipeline);
-
-    uint32_t i{ 0 }; 
-    while(!_drawings.empty())
-    {
-        auto [mesh, transform] = _drawings.front();
-        _drawings.pop();
-
-        Instance instance;
-        instance.model = BuildSRT(transform); 
-        instance.transInvModel = glm::mat4{ glm::mat3{ glm::transpose(glm::inverse(instance.model)) } };
-
-        uint32_t dynamicOffset{ i * _uniformStride };
-        _queue.WriteBuffer(_instanceBuf, dynamicOffset, &instance, sizeof(instance));
-
-        pass.SetVertexBuffer(0, mesh.vertBuf, 0, wgpu::kWholeSize);
-        pass.SetIndexBuffer(mesh.indexBuf, mesh.indexFormat, 0, wgpu::kWholeSize);
-
-        pass.SetBindGroup(0, _standardBindGroup, 1, &dynamicOffset);
-        pass.SetBindGroup(1, mesh.bindGroup, 0, nullptr);
-
-        pass.DrawIndexed(mesh.indexCount, 1, 0, 0, 0);
-
-        ++i;
-    }
-
-    pass.End();
+    _pbrPass->Render(encoder);
+    
 
     wgpu::TextureView backBufView = _swapChain.GetCurrentTextureView();
 
@@ -230,7 +177,7 @@ void Renderer::Resize(int32_t width, int32_t height)
 
 void Renderer::DrawMesh(const Mesh& mesh, const Transform& transform)
 {
-    _drawings.emplace(mesh, transform);
+    _pbrPass->DrawMesh(mesh, transform);
 }
 
 void Renderer::SetLight(uint32_t index, const glm::vec4& color, const glm::vec3& position)
@@ -308,176 +255,45 @@ void Renderer::SetupRenderTarget()
     depthTextureViewDesc.format = DEPTH_STENCIL_FORMAT;
 
     _depthTextureView = _depthTexture.CreateView(&depthTextureViewDesc);
+
+    _depthStencilAttachment.view = _depthTextureView;
+    _depthStencilAttachment.depthClearValue = 1.0f;
+    _depthStencilAttachment.depthLoadOp = wgpu::LoadOp::Clear;
+    _depthStencilAttachment.depthStoreOp = wgpu::StoreOp::Store;
+    _depthStencilAttachment.depthReadOnly = false;
+    _depthStencilAttachment.stencilClearValue = 0.f;
+    _depthStencilAttachment.stencilLoadOp = wgpu::LoadOp::Undefined;
+    _depthStencilAttachment.stencilStoreOp = wgpu::StoreOp::Undefined;
+    _depthStencilAttachment.stencilReadOnly = true;
 }
 
 void Renderer::CreatePipelineAndBuffers()
 {
-    std::array<wgpu::BindGroupLayoutEntry, 2> bgLayoutEntry{};
+    std::array<wgpu::BindGroupLayoutEntry, 1> bgLayoutEntry{};
     bgLayoutEntry[0].binding = 0;
     bgLayoutEntry[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
     bgLayoutEntry[0].buffer.type = wgpu::BufferBindingType::Uniform;
     bgLayoutEntry[0].buffer.minBindingSize = sizeof(_commonData);
 
-    bgLayoutEntry[1].binding = 1;
-    bgLayoutEntry[1].visibility = wgpu::ShaderStage::Vertex;
-    bgLayoutEntry[1].buffer.type = wgpu::BufferBindingType::Uniform;
-    bgLayoutEntry[1].buffer.minBindingSize = sizeof(Instance);
-    bgLayoutEntry[1].buffer.hasDynamicOffset = true;
-
     wgpu::BindGroupLayoutDescriptor bgLayoutDesc{};
-    bgLayoutDesc.label = "Default binding group layout";
+    bgLayoutDesc.label = "Common binding group layout";
     bgLayoutDesc.entryCount = bgLayoutEntry.size();
     bgLayoutDesc.entries = bgLayoutEntry.data();
-    _bgLayouts.standard = _device.CreateBindGroupLayout(&bgLayoutDesc);
+    _commonBGLayout = _device.CreateBindGroupLayout(&bgLayoutDesc);
 
-    std::array<wgpu::BindGroupEntry, 2> bgEntry{};
+    std::array<wgpu::BindGroupEntry, 1> bgEntry{};
     assert(bgLayoutEntry.size() == bgEntry.size() && "Bindgroup entry descriptions don't match their sizes");
 
     bgEntry[0].binding = 0;
     bgEntry[0].buffer = _commonBuf;
     bgEntry[0].size = sizeof(_commonData);
-
-    bgEntry[1].binding = 1;
-    bgEntry[1].buffer = _instanceBuf;
-    bgEntry[1].size = sizeof(Instance);
      
     wgpu::BindGroupDescriptor bgDesc{};
-    bgDesc.label = "Standard bind group";
-    bgDesc.layout = _bgLayouts.standard;
+    bgDesc.label = "Common bind group";
+    bgDesc.layout = _commonBGLayout;
     bgDesc.entryCount = bgLayoutDesc.entryCount;
     bgDesc.entries = bgEntry.data();
-    _standardBindGroup = _device.CreateBindGroup(&bgDesc); 
-
-
-    // Create mesh bind group layout.
-    std::array<wgpu::BindGroupLayoutEntry, 8> bgLayoutEntriesMesh{};
-    bgLayoutEntriesMesh[0].binding = 0;
-    bgLayoutEntriesMesh[0].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[0].buffer.type = wgpu::BufferBindingType::Uniform;
-    bgLayoutEntriesMesh[0].buffer.minBindingSize = sizeof(Material);
-
-    bgLayoutEntriesMesh[1].binding = 1;
-    bgLayoutEntriesMesh[1].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[1].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-    bgLayoutEntriesMesh[2].binding = 2;
-    bgLayoutEntriesMesh[2].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[2].texture.sampleType = wgpu::TextureSampleType::Float; 
-    bgLayoutEntriesMesh[2].texture.viewDimension = wgpu::TextureViewDimension::e2D;  
-    bgLayoutEntriesMesh[2].texture.multisampled = false;
-      
-    bgLayoutEntriesMesh[3].binding = 3; 
-    bgLayoutEntriesMesh[3].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[3].texture.sampleType = wgpu::TextureSampleType::Float;
-    bgLayoutEntriesMesh[3].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-    bgLayoutEntriesMesh[3].texture.multisampled = false;
-
-    bgLayoutEntriesMesh[4].binding = 4;
-    bgLayoutEntriesMesh[4].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[4].texture.sampleType = wgpu::TextureSampleType::Float;
-    bgLayoutEntriesMesh[4].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-    bgLayoutEntriesMesh[4].texture.multisampled = false;
-
-    bgLayoutEntriesMesh[5].binding = 5;
-    bgLayoutEntriesMesh[5].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[5].texture.sampleType = wgpu::TextureSampleType::Float;
-    bgLayoutEntriesMesh[5].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-    bgLayoutEntriesMesh[5].texture.multisampled = false;
-
-    bgLayoutEntriesMesh[6].binding = 6;
-    bgLayoutEntriesMesh[6].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[6].texture.sampleType = wgpu::TextureSampleType::Float;
-    bgLayoutEntriesMesh[6].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-    bgLayoutEntriesMesh[6].texture.multisampled = false;
-
-    bgLayoutEntriesMesh[7].binding = 7;
-    bgLayoutEntriesMesh[7].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutEntriesMesh[7].texture.sampleType = wgpu::TextureSampleType::Float;
-    bgLayoutEntriesMesh[7].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-    bgLayoutEntriesMesh[7].texture.multisampled = false;
-
-
-    wgpu::BindGroupLayoutDescriptor bgLayoutMeshDesc{};
-    bgLayoutMeshDesc.label = "Mesh binding group layout";
-    bgLayoutMeshDesc.entryCount = bgLayoutEntriesMesh.size();
-    bgLayoutMeshDesc.entries = bgLayoutEntriesMesh.data();
-    _bgLayouts.mesh = _device.CreateBindGroupLayout(&bgLayoutMeshDesc);
-
-
-    wgpu::ShaderModule vertModule = CreateShader("assets/vertex.wgsl", "Vertex shader");
-    wgpu::ShaderModule fragModule = CreateShader("assets/frag.wgsl", "Fragment shader");
-
-    wgpu::PipelineLayoutDescriptor layoutDesc{};
-    layoutDesc.label = "Default pipeline layout";
-    layoutDesc.bindGroupLayoutCount = 2;
-    layoutDesc.bindGroupLayouts = &_bgLayouts.standard;
-    wgpu::PipelineLayout pipelineLayout = _device.CreatePipelineLayout(&layoutDesc);
-
-    std::vector<wgpu::VertexAttribute> vertAttrs = {};
-    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, position), 0);
-    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, normal), 1);
-    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, tangent), 2);
-    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x3, offsetof(Vertex, bitangent), 3);
-    vertAttrs.emplace_back(wgpu::VertexFormat::Float32x2, offsetof(Vertex, uv), 4);
-
-    wgpu::VertexBufferLayout vertexBufferLayout{};
-    vertexBufferLayout.arrayStride = sizeof(Vertex);
-    vertexBufferLayout.attributeCount = vertAttrs.size();
-    vertexBufferLayout.attributes = vertAttrs.data(); 
-    vertexBufferLayout.stepMode = wgpu::VertexStepMode::Vertex;
-     
-    wgpu::BlendState blend{}; 
-    blend.color.operation = wgpu::BlendOperation::Add;
-    blend.color.srcFactor = wgpu::BlendFactor::SrcAlpha;
-    blend.color.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
-    blend.alpha.operation = wgpu::BlendOperation::Add;
-    blend.alpha.srcFactor = wgpu::BlendFactor::Zero;
-    blend.alpha.dstFactor = wgpu::BlendFactor::One;
-
-    wgpu::ColorTargetState colorTarget{};
-    colorTarget.format = wgpu::TextureFormat::RGBA16Float;
-    colorTarget.blend = &blend;
-    colorTarget.writeMask = wgpu::ColorWriteMask::All;
-
-    wgpu::FragmentState fragment{};
-    fragment.module = fragModule;
-    fragment.entryPoint = "main";
-    fragment.targetCount = 1;
-    fragment.targets = &colorTarget;
-    fragment.constantCount = 0; 
-    fragment.constants = nullptr;
-
-    wgpu::RenderPipelineDescriptor rpDesc{};
-    rpDesc.label = "Render pipeline";
-    rpDesc.fragment = &fragment;
-    rpDesc.layout = pipelineLayout;
-    rpDesc.depthStencil = nullptr;
-
-    rpDesc.vertex.module = vertModule;
-    rpDesc.vertex.entryPoint = "main";
-    rpDesc.vertex.bufferCount = 1;
-    rpDesc.vertex.buffers = &vertexBufferLayout;
-
-    rpDesc.multisample.count = 4;
-    rpDesc.multisample.mask = 0xFF'FF'FF'FF;
-    rpDesc.multisample.alphaToCoverageEnabled = false;
-
-    rpDesc.primitive.frontFace = wgpu::FrontFace::CCW;
-    rpDesc.primitive.cullMode = wgpu::CullMode::None;
-    rpDesc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-    rpDesc.primitive.stripIndexFormat = wgpu::IndexFormat::Undefined; 
-
-    wgpu::DepthStencilState depthState{};
-    depthState.depthCompare = wgpu::CompareFunction::Less;
-    depthState.depthWriteEnabled = true;
-    depthState.format = DEPTH_STENCIL_FORMAT;
-    depthState.stencilReadMask = 0;
-    depthState.stencilWriteMask = 0;
-
-    rpDesc.depthStencil = &depthState;
-
-
-    _pipeline = _device.CreateRenderPipeline(&rpDesc);
+    _commonBindGroup = _device.CreateBindGroup(&bgDesc); 
 }
 
 void Renderer::SetupHDRPipeline()
@@ -552,7 +368,6 @@ void Renderer::SetupHDRPipeline()
 
     _pipelineHDR = _device.CreateRenderPipeline(&rpHDRDesc);
 }
-
 
 wgpu::Buffer Renderer::CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage, const char* label)
 {

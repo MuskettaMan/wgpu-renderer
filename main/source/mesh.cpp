@@ -5,6 +5,7 @@
 #include <tiny_gltf.h>
 
 #include "renderer.hpp"
+#include "graphics/pbr_pass.hpp"
 #include <utils.hpp>
 
 uint32_t CalculateStride(const tinygltf::Accessor& accessor)
@@ -83,7 +84,7 @@ std::vector<float> ExtractAttribute(
     return data;
 }
 
-glm::mat3x3 ComputeTBN(const Renderer::Vertex corners[3], const glm::vec3& expectedNormal)
+glm::mat3x3 ComputeTBN(const PBRPass::Vertex corners[3], const glm::vec3& expectedNormal)
 {
     glm::vec3 ePos1 = corners[1].position - corners[0].position;
     glm::vec3 ePos2 = corners[2].position - corners[0].position;
@@ -131,7 +132,7 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     std::vector<glm::vec3> positions;
     std::vector<glm::vec3> normals;
     std::vector<glm::vec2> uvs;
-    std::vector<Renderer::Vertex> vertices{};
+    std::vector<PBRPass::Vertex> vertices{};
     std::vector<uint32_t> indices32{};
     std::vector<uint16_t> indices16{};
 
@@ -226,7 +227,7 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     // add tangents and bitangents
     for(size_t i = 0; i < indexCount; i += 3)
     {
-        Renderer::Vertex corners[3] = { 
+        PBRPass::Vertex corners[3] = { 
             vertices[indices32.empty() ? indices16[i] : indices32[i]], 
             vertices[indices32.empty() ? indices16[i + 1] : indices32[i + 1]], 
             vertices[indices32.empty() ? indices16[i + 2] : indices32[i + 2]] 
@@ -248,7 +249,7 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
         indexData = indices32.data();
 
     Mesh mesh{}; 
-    mesh.vertBuf = renderer.CreateBuffer(vertices.data(), sizeof(Renderer::Vertex) * vertices.size(), wgpu::BufferUsage::Vertex, "Vertex buffer");
+    mesh.vertBuf = renderer.CreateBuffer(vertices.data(), sizeof(PBRPass::Vertex) * vertices.size(), wgpu::BufferUsage::Vertex, "Vertex buffer");
     mesh.indexBuf = renderer.CreateBuffer(indexData, indexBufferSize, wgpu::BufferUsage::Index, "Index buffer");
     mesh.indexFormat = indices32.empty() ? wgpu::IndexFormat::Uint16 : wgpu::IndexFormat::Uint32;
     mesh.indexCount = indexCount;
@@ -304,7 +305,7 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     samplerDesc.lodMaxClamp = static_cast<float>(mipLevelCount);
     samplerDesc.compare = wgpu::CompareFunction::Undefined;
     samplerDesc.maxAnisotropy = 1;
-    mesh.sampler = renderer.GetDevice().CreateSampler(&samplerDesc);
+    mesh.sampler = renderer.Device().CreateSampler(&samplerDesc);
 
     std::array<wgpu::BindGroupEntry, 8> bgEntries{};
     bgEntries[0].binding = 0;
@@ -333,10 +334,10 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
 
 
     wgpu::BindGroupDescriptor bgDesc{};
-    bgDesc.layout = renderer.GetMeshBindGroupLayout();
+    bgDesc.layout = renderer.PBRRenderPass().PBRBindGroupLayout();
     bgDesc.entryCount = bgEntries.size();
     bgDesc.entries = bgEntries.data();
-    mesh.bindGroup = renderer.GetDevice().CreateBindGroup(&bgDesc);
+    mesh.bindGroup = renderer.Device().CreateBindGroup(&bgDesc);
 
     return std::optional<Mesh>(mesh);
 }

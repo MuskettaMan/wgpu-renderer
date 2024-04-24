@@ -35,11 +35,11 @@ struct Common
 struct Instance 
 {
     model: mat4x4f,
-    transInvModel: mat4x4f
+    transInvModel: mat4x4f,
 }
 
 @group(0) @binding(0) var<uniform> u_common: Common;
-@group(0) @binding(1) var<uniform> u_instance: Instance;
+@group(1) @binding(0) var<uniform> u_instance: Instance;
 
 @vertex
 fn main(input: VertexIn) -> VertexOut {
