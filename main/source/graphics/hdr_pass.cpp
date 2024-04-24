@@ -2,7 +2,7 @@
 #include "renderer.hpp"
 #include <iostream>
 
-HDRPass::HDRPass(Renderer& renderer) : RenderPass(renderer, wgpu::TextureFormat::BGRA8Unorm)
+HDRPass::HDRPass(Renderer& renderer) : RenderPass(renderer, renderer.SwapChainFormat())
 {
     wgpu::ColorTargetState colorTargetHDR{};
     colorTargetHDR.format = _renderer.SwapChainFormat();

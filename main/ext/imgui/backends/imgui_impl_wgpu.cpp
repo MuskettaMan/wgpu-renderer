@@ -249,6 +249,7 @@ static WGPUProgrammableStageDescriptor ImGui_ImplWGPU_CreateShaderModule(const c
     wgsl_desc.code = wgsl_source;
 
     WGPUShaderModuleDescriptor desc = {};
+    desc.label = "Dear ImGui Shader Module";
     desc.nextInChain = reinterpret_cast<WGPUChainedStruct*>(&wgsl_desc);
 
     WGPUProgrammableStageDescriptor stage_desc = {};
@@ -263,6 +264,7 @@ static WGPUBindGroup ImGui_ImplWGPU_CreateImageBindGroup(WGPUBindGroupLayout lay
     WGPUBindGroupEntry image_bg_entries[] = { { nullptr, 0, 0, 0, 0, 0, texture } };
 
     WGPUBindGroupDescriptor image_bg_descriptor = {};
+    image_bg_descriptor.label = "Dear ImGui Image Bind Group";
     image_bg_descriptor.layout = layout;
     image_bg_descriptor.entryCount = sizeof(image_bg_entries) / sizeof(WGPUBindGroupEntry);
     image_bg_descriptor.entries = image_bg_entries;
@@ -504,6 +506,7 @@ static void ImGui_ImplWGPU_CreateFontsTexture()
         bd->renderResources.FontTexture = wgpuDeviceCreateTexture(bd->wgpuDevice, &tex_desc);
 
         WGPUTextureViewDescriptor tex_view_desc = {};
+        tex_view_desc.label = "Dear ImGui Font Texture View";
         tex_view_desc.format = WGPUTextureFormat_RGBA8Unorm;
         tex_view_desc.dimension = WGPUTextureViewDimension_2D;
         tex_view_desc.baseMipLevel = 0;
@@ -533,6 +536,7 @@ static void ImGui_ImplWGPU_CreateFontsTexture()
     // (Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or 'style.AntiAliasedLinesUseTex = false' to allow point/nearest sampling)
     {
         WGPUSamplerDescriptor sampler_desc = {};
+        sampler_desc.label = "Dear ImGui Font Sampler";
         sampler_desc.minFilter = WGPUFilterMode_Linear;
         sampler_desc.magFilter = WGPUFilterMode_Linear;
         sampler_desc.mipmapFilter = WGPUMipmapFilterMode_Linear;
@@ -572,6 +576,7 @@ bool ImGui_ImplWGPU_CreateDeviceObjects()
 
     // Create render pipeline
     WGPURenderPipelineDescriptor graphics_pipeline_desc = {};
+    graphics_pipeline_desc.label = "Dear ImGui Render Pipeline";
     graphics_pipeline_desc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
     graphics_pipeline_desc.primitive.stripIndexFormat = WGPUIndexFormat_Undefined;
     graphics_pipeline_desc.primitive.frontFace = WGPUFrontFace_CW;
@@ -606,6 +611,7 @@ bool ImGui_ImplWGPU_CreateDeviceObjects()
     bg_layouts[1] = wgpuDeviceCreateBindGroupLayout(bd->wgpuDevice, &image_bg_layout_desc);
 
     WGPUPipelineLayoutDescriptor layout_desc = {};
+    layout_desc.label = "Dear ImGui Pipeline Layout";
     layout_desc.bindGroupLayoutCount = 2;
     layout_desc.bindGroupLayouts = bg_layouts;
     graphics_pipeline_desc.layout = wgpuDeviceCreatePipelineLayout(bd->wgpuDevice, &layout_desc);
@@ -687,6 +693,7 @@ bool ImGui_ImplWGPU_CreateDeviceObjects()
     };
 
     WGPUBindGroupDescriptor common_bg_descriptor = {};
+    common_bg_descriptor.label = "Dear ImGui Common Bind Group";
     common_bg_descriptor.layout = bg_layouts[0];
     common_bg_descriptor.entryCount = sizeof(common_bg_entries) / sizeof(WGPUBindGroupEntry);
     common_bg_descriptor.entries = common_bg_entries;

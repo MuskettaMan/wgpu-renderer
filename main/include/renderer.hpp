@@ -1,6 +1,7 @@
 #pragma once
 #include <webgpu/webgpu_cpp.h>
-#include <glm.hpp>
+#include <vec3.hpp>
+#include <mat4x4.hpp>
 #include <queue>
 #include <GLFW/glfw3.h>
 #include <tiny_gltf.h>
@@ -14,6 +15,7 @@ constexpr uint32_t MAX_POINT_LIGHTS{ 4 };
 
 class PBRPass;
 class HDRPass;
+class ImGuiPass;
 
 class Renderer
 {
@@ -31,8 +33,6 @@ public:
     ~Renderer();
 
     void Render() const;
-    void BeginEditor() const;
-    void EndEditor() const;
     void Resize(int32_t width, int32_t height);
 
     void DrawMesh(const Mesh& mesh, const Transform& transform);
@@ -54,6 +54,7 @@ public:
     const PBRPass& PBRRenderPass() const { return *_pbrPass; }
     const wgpu::TextureFormat SwapChainFormat() const { return _swapChainFormat; }
     const wgpu::SwapChain& SwapChain() const { return _swapChain; }
+    GLFWwindow* Window() const { return _window; }
 
     struct PointLight
     {
@@ -68,10 +69,10 @@ private:
     void SetupRenderTarget();
     void CreatePipelineAndBuffers();
     wgpu::Texture CreateTexture(const tinygltf::Image& image, const std::vector<uint8_t>& data, uint32_t mipLevelCount, const char* label = nullptr);
-    bool SetupImGui();
 
     std::unique_ptr<PBRPass> _pbrPass;
     std::unique_ptr<HDRPass> _hdrPass;
+    std::unique_ptr<ImGuiPass> _imGuiPass;
 
     wgpu::Adapter _adapter;
     wgpu::Instance _instance;

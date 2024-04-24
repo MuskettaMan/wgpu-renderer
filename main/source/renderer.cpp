@@ -3,9 +3,6 @@
 #include <iostream>
 #include <ext.hpp>
 #include <fstream>
-#include <imgui.h>
-#include <backends/imgui_impl_glfw.h>
-#include <backends/imgui_impl_wgpu.h>
 #include <cstddef>
 
 #include "aliases.hpp"
@@ -14,6 +11,7 @@
 #include <stopwatch.hpp>
 #include "graphics/pbr_pass.hpp"
 #include <graphics/hdr_pass.hpp>
+#include <graphics/imgui_pass.hpp>
 
 Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t width, int32_t height) :
     _adapter(deviceResources.adapter),
@@ -56,15 +54,9 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
     CreatePipelineAndBuffers();
     Resize(_width, _height);
 
-
-    if (!SetupImGui())
-    {
-        std::cout << "Failed initalizing ImGui" << std::endl;
-        return;
-    }
-
     _pbrPass = std::make_unique<PBRPass>(*this);
     _hdrPass = std::make_unique<HDRPass>(*this);
+    _imGuiPass = std::make_unique<ImGuiPass>(*this);
 }
 
 Renderer::~Renderer() = default;
@@ -88,40 +80,13 @@ void Renderer::Render() const
     wgpu::CommandEncoder encoder = _device.CreateCommandEncoder(&ceDesc);
     wgpu::TextureView backBufView = _swapChain.GetCurrentTextureView();
 
-    _pbrPass->Render(encoder, _msaaView, std::make_shared<wgpu::TextureView>(_hdrView)); // Renders into MSAA target.
-    _hdrPass->Render(encoder, backBufView); // Renders into back buffer.
-
-
-    wgpu::RenderPassColorAttachment imguiColorDesc{};
-    imguiColorDesc.view = backBufView;
-    imguiColorDesc.loadOp = wgpu::LoadOp::Load;
-    imguiColorDesc.storeOp = wgpu::StoreOp::Store;
-
-    wgpu::RenderPassDescriptor imguiPassDesc{};
-    imguiPassDesc.label = "ImGui pass";
-    imguiPassDesc.colorAttachmentCount = 1;
-    imguiPassDesc.colorAttachments = &imguiColorDesc;
-    imguiPassDesc.depthStencilAttachment = nullptr;
-
-    wgpu::RenderPassEncoder imguiPass = encoder.BeginRenderPass(&imguiPassDesc);
-    ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), imguiPass.Get());
-    imguiPass.End();
+    _pbrPass->Render(encoder, _msaaView, std::make_shared<wgpu::TextureView>(_hdrView));
+    _hdrPass->Render(encoder, backBufView);
+    _imGuiPass->Render(encoder, backBufView);
 
     wgpu::CommandBuffer commands = encoder.Finish(nullptr);
 
     _queue.Submit(1, &commands);
-}
-
-void Renderer::BeginEditor() const
-{
-    ImGui_ImplWGPU_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-}
-
-void Renderer::EndEditor() const
-{
-    ImGui::Render();
 }
 
 void Renderer::Resize(int32_t width, int32_t height)
@@ -443,31 +408,4 @@ glm::mat4 Renderer::BuildSRT(const Transform& transform) const
     matrix = matrix * glm::mat4_cast(transform.rotation);
 
     return matrix;
-}
-
-bool Renderer::SetupImGui()
-{
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
-
-    ImGui::StyleColorsDark();
-
-    ImGui_ImplGlfw_InitForOther(_window, true);
-    ImGui_ImplGlfw_InstallEmscriptenCanvasResizeCallback("#canvas");
-
-    ImGui_ImplWGPU_InitInfo imguiInitInfo{};
-    imguiInitInfo.DepthStencilFormat = conv_enum<WGPUTextureFormat>(wgpu::TextureFormat::Undefined);
-    imguiInitInfo.Device = _device.Get();
-    imguiInitInfo.NumFramesInFlight = 3;
-    imguiInitInfo.PipelineMultisampleState = { nullptr, 1,  0xFF'FF'FF'FF, false };
-    imguiInitInfo.RenderTargetFormat = conv_enum<WGPUTextureFormat>(_swapChainFormat);
-    ImGui_ImplWGPU_Init(&imguiInitInfo);
-    ImGui_ImplWGPU_CreateDeviceObjects();
-
-    // Prevent opening .ini with emscripten file system.
-    io.IniFilename = nullptr;
-
-    return true;
 }

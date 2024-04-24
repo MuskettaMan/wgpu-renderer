@@ -11,6 +11,8 @@
 #include "renderer.hpp"
 #include <entt.hpp>
 #include <cmath>
+#include <backends/imgui_impl_wgpu.h>
+#include <backends/imgui_impl_glfw.h>
 
 using namespace std::literals::chrono_literals;
 
@@ -186,7 +188,10 @@ EM_BOOL em_render(double time, void* userData)
         } 
     }
 
-    g_renderer->BeginEditor();
+    // TODO: Move this to a system.
+    ImGui_ImplWGPU_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
 
     ImGui::Begin("Light");   
     {
@@ -207,7 +212,7 @@ EM_BOOL em_render(double time, void* userData)
     }
     ImGui::End();
 
-    g_renderer->EndEditor();
+    ImGui::Render();
 
     g_renderer->Render();
 
