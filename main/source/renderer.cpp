@@ -13,6 +13,7 @@
 #include "utils.hpp"
 #include <stopwatch.hpp>
 #include "graphics/pbr_pass.hpp"
+#include <graphics/hdr_pass.hpp>
 
 Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t width, int32_t height) :
     _adapter(deviceResources.adapter),
@@ -44,7 +45,7 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
     _commonData.view = glm::inverse(camMat);
 
     _commonData.pointLights[0] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.5f, 0.0f, 0.5f   }, 1.0f };
-    _commonData.pointLights[1] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.5f, 0.25f, -0.5f  }, 1.0f };
+    _commonData.pointLights[1] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.5f, 0.25f, -0.5f }, 1.0f };
     _commonData.pointLights[2] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { -0.5f, 0.5f, -0.5f }, 1.0f };
     _commonData.pointLights[3] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { -0.5f, 1.0f, 0.5f  }, 1.0f };
     _commonData.normalMapStrength = 0.8f;
@@ -53,7 +54,6 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
 
 
     CreatePipelineAndBuffers();
-    SetupHDRPipeline();
     Resize(_width, _height);
 
 
@@ -64,6 +64,7 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
     }
 
     _pbrPass = std::make_unique<PBRPass>(*this);
+    _hdrPass = std::make_unique<HDRPass>(*this);
 }
 
 Renderer::~Renderer() = default;
@@ -85,35 +86,10 @@ void Renderer::Render() const
     ceDesc.label = "Command encoder";
 
     wgpu::CommandEncoder encoder = _device.CreateCommandEncoder(&ceDesc);
-
-    _pbrPass->Render(encoder);
-    
-
     wgpu::TextureView backBufView = _swapChain.GetCurrentTextureView();
 
-
-
-
-    // HDR to back buffer tonemapping.
-    wgpu::RenderPassColorAttachment colorDescTonemap{};
-    colorDescTonemap.view = backBufView;
-    colorDescTonemap.loadOp = wgpu::LoadOp::Clear;
-    colorDescTonemap.storeOp = wgpu::StoreOp::Store;
-    colorDescTonemap.resolveTarget = nullptr;
-
-
-    wgpu::RenderPassDescriptor tonemapPassDesc{};
-    tonemapPassDesc.label = "Tonemap pass";
-    tonemapPassDesc.colorAttachmentCount = 1;
-    tonemapPassDesc.colorAttachments = &colorDescTonemap;
-    tonemapPassDesc.depthStencilAttachment = nullptr;
-    
-    wgpu::RenderPassEncoder tonemapPass = encoder.BeginRenderPass(&tonemapPassDesc);
-
-    tonemapPass.SetPipeline(_pipelineHDR);
-    tonemapPass.SetBindGroup(0, _hdrBindGroup, 0, nullptr);
-    tonemapPass.Draw(3, 1, 0, 0);
-    tonemapPass.End();
+    _pbrPass->Render(encoder, _msaaView, std::make_shared<wgpu::TextureView>(_hdrView)); // Renders into MSAA target.
+    _hdrPass->Render(encoder, backBufView); // Renders into back buffer.
 
 
     wgpu::RenderPassColorAttachment imguiColorDesc{};
@@ -154,18 +130,8 @@ void Renderer::Resize(int32_t width, int32_t height)
     _height = height;
     SetupRenderTarget();
 
-    std::array<wgpu::BindGroupEntry, 2> bgEntriesHDR{};
-    bgEntriesHDR[0].binding = 0;
-    bgEntriesHDR[0].textureView = _hdrView;
-    bgEntriesHDR[1].binding = 1;
-    bgEntriesHDR[1].sampler = _hdrSampler;
-
-    wgpu::BindGroupDescriptor hdrBindgroupDesc{};
-    hdrBindgroupDesc.layout = _hdrBindGroupLayout;
-    hdrBindgroupDesc.entryCount = bgEntriesHDR.size();
-    hdrBindgroupDesc.entries = bgEntriesHDR.data();
-
-    _hdrBindGroup = _device.CreateBindGroup(&hdrBindgroupDesc);
+    if(_hdrPass)
+        _hdrPass->UpdateHDRView(_hdrView);
 
     _camera.ratio = _width / static_cast<float>(_height);
 
@@ -294,79 +260,6 @@ void Renderer::CreatePipelineAndBuffers()
     bgDesc.entryCount = bgLayoutDesc.entryCount;
     bgDesc.entries = bgEntry.data();
     _commonBindGroup = _device.CreateBindGroup(&bgDesc); 
-}
-
-void Renderer::SetupHDRPipeline()
-{
-    wgpu::ColorTargetState colorTargetHDR{};
-    colorTargetHDR.format = _swapChainFormat;
-    colorTargetHDR.blend = nullptr;
-
-    wgpu::ShaderModule hdrShader = CreateShader("assets/hdr.wgsl", "HDR Fragment shader");
-    wgpu::FragmentState hdrFragment{};
-    hdrFragment.module = hdrShader;
-    hdrFragment.entryPoint = "fs_main";
-    hdrFragment.targetCount = 1;
-    hdrFragment.targets = &colorTargetHDR;
-    hdrFragment.constantCount = 0;
-    hdrFragment.constants = nullptr;
-
-    wgpu::RenderPipelineDescriptor rpHDRDesc{};
-    rpHDRDesc.label = "HDR Render pipeline";
-    rpHDRDesc.fragment = &hdrFragment;
-    rpHDRDesc.vertex.bufferCount = 0;
-    rpHDRDesc.vertex.buffers = nullptr;
-    rpHDRDesc.vertex.entryPoint = "vs_main";
-    rpHDRDesc.vertex.module = hdrShader;
-
-    rpHDRDesc.multisample.count = 1;
-    rpHDRDesc.multisample.mask = 0xFF'FF'FF'FF;
-
-    rpHDRDesc.primitive.frontFace = wgpu::FrontFace::CCW;
-    rpHDRDesc.primitive.cullMode = wgpu::CullMode::None;
-    rpHDRDesc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-    rpHDRDesc.primitive.stripIndexFormat = wgpu::IndexFormat::Undefined;
-
-    rpHDRDesc.depthStencil = nullptr;
-
-    std::array<wgpu::BindGroupLayoutEntry, 2> bgLayoutHDREntries{};
-    bgLayoutHDREntries[0].binding = 0;
-    bgLayoutHDREntries[0].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutHDREntries[0].texture.sampleType = wgpu::TextureSampleType::Float;
-    bgLayoutHDREntries[0].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-    bgLayoutHDREntries[1].binding = 1;
-    bgLayoutHDREntries[1].visibility = wgpu::ShaderStage::Fragment;
-    bgLayoutHDREntries[1].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-    wgpu::BindGroupLayoutDescriptor bgLayoutHDRDesc{};
-    bgLayoutHDRDesc.entryCount = bgLayoutHDREntries.size();
-    bgLayoutHDRDesc.entries = bgLayoutHDREntries.data();
-
-    _hdrBindGroupLayout = _device.CreateBindGroupLayout(&bgLayoutHDRDesc);
-
-    wgpu::PipelineLayoutDescriptor hdrPipelineLayoutDesc{};
-    hdrPipelineLayoutDesc.label = "HDR pipeline layout";
-    hdrPipelineLayoutDesc.bindGroupLayoutCount = 1;
-    hdrPipelineLayoutDesc.bindGroupLayouts = &_hdrBindGroupLayout;
-
-    wgpu::PipelineLayout hdrPipelineLayout = _device.CreatePipelineLayout(&hdrPipelineLayoutDesc);
-
-    rpHDRDesc.layout = hdrPipelineLayout;
-
-    wgpu::SamplerDescriptor hdrSamplerDesc{};
-    hdrSamplerDesc.addressModeU = wgpu::AddressMode::ClampToEdge;
-    hdrSamplerDesc.addressModeV = wgpu::AddressMode::ClampToEdge;
-    hdrSamplerDesc.addressModeW = wgpu::AddressMode::ClampToEdge;
-    hdrSamplerDesc.minFilter = wgpu::FilterMode::Linear;
-    hdrSamplerDesc.magFilter = wgpu::FilterMode::Linear;
-    hdrSamplerDesc.mipmapFilter = wgpu::MipmapFilterMode::Linear;
-    hdrSamplerDesc.lodMinClamp = 0.0f;
-    hdrSamplerDesc.lodMaxClamp = 1000.0f;
-    hdrSamplerDesc.compare = wgpu::CompareFunction::Undefined;
-
-    _hdrSampler = _device.CreateSampler(&hdrSamplerDesc);
-
-    _pipelineHDR = _device.CreateRenderPipeline(&rpHDRDesc);
 }
 
 wgpu::Buffer Renderer::CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage, const char* label)

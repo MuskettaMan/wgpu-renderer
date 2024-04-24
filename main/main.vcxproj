@@ -84,6 +84,7 @@
     <ClCompile Include="ext\tinygltf\tiny_gltf.cc">
       <OptimizationLevel Condition="'$(Configuration)|$(Platform)'=='Debug|Emscripten'">O3</OptimizationLevel>
     </ClCompile>
+    <ClCompile Include="source\graphics\hdr_pass.cpp" />
     <ClCompile Include="source\graphics\pbr_pass.cpp" />
     <ClCompile Include="source\graphics\render_pass.cpp" />
     <ClCompile Include="source\main.cpp" />
@@ -94,6 +95,7 @@
     <ClInclude Include="include\aliases.hpp" />
     <ClInclude Include="include\camera.hpp" />
     <ClInclude Include="include\enum_util.hpp" />
+    <ClInclude Include="include\graphics\hdr_pass.hpp" />
     <ClInclude Include="include\graphics\pbr_pass.hpp" />
     <ClInclude Include="include\graphics\render_pass.hpp" />
     <ClInclude Include="include\mesh.hpp" />

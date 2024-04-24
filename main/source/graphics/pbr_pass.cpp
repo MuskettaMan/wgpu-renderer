@@ -6,7 +6,7 @@
 #include <iostream>
 
 PBRPass::PBRPass(Renderer& renderer) : 
-    RenderPass(renderer),
+    RenderPass(renderer, wgpu::TextureFormat::RGBA16Float),
     _uniformStride(ceilToNextMultiple(sizeof(Instance), 256)),
     _vertModule(_renderer.CreateShader("assets/vertex.wgsl", "Vertex shader")),
     _fragModule(_renderer.CreateShader("assets/frag.wgsl", "Fragment shader"))
@@ -151,11 +151,11 @@ PBRPass::PBRPass(Renderer& renderer) :
 
 PBRPass::~PBRPass() = default;
 
-void PBRPass::Render(const wgpu::CommandEncoder& encoder)
+void PBRPass::Render(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& renderTarget, std::shared_ptr<const wgpu::TextureView> resolveTarget)
 {
     wgpu::RenderPassColorAttachment colorDesc{};
-    colorDesc.view = _renderer.MSAAView();
-    colorDesc.resolveTarget = _renderer.HDRView();
+    colorDesc.view = renderTarget;
+    colorDesc.resolveTarget = resolveTarget ? *resolveTarget : nullptr;
     colorDesc.loadOp = wgpu::LoadOp::Clear;
     colorDesc.storeOp = wgpu::StoreOp::Discard; // TODO: Review difference with store.
     colorDesc.clearValue.r = 0.3f;

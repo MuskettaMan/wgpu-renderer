@@ -6,11 +6,12 @@ class Renderer;
 class RenderPass
 {
 public:
-    RenderPass(Renderer& renderer) : _renderer(renderer) {}
+    RenderPass(Renderer& renderer, wgpu::TextureFormat renderFormat) : _renderer(renderer) {}
     virtual ~RenderPass();
 
-    virtual void Render(const wgpu::CommandEncoder& encoder) = 0;
+    virtual void Render(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& renderTarget, std::shared_ptr<const wgpu::TextureView> resolveTarget = nullptr) = 0;
 
 protected:
     Renderer& _renderer;
+    const wgpu::TextureFormat _renderFormat{ wgpu::TextureFormat::Undefined };
 };

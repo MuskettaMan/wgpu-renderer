@@ -23,7 +23,7 @@ public:
     PBRPass(Renderer& renderer);
     virtual ~PBRPass();
 
-    virtual void Render(const wgpu::CommandEncoder& encoder) override;
+    virtual void Render(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& renderTarget, std::shared_ptr<const wgpu::TextureView> resolveTarget = nullptr) override;
 
     void DrawMesh(const Mesh& mesh, const Transform& transform) const;
     const wgpu::BindGroupLayout& PBRBindGroupLayout() const { return _pbrBindGroupLayout; }

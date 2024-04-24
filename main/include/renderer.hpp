@@ -13,6 +13,7 @@
 constexpr uint32_t MAX_POINT_LIGHTS{ 4 };
 
 class PBRPass;
+class HDRPass;
 
 class Renderer
 {
@@ -51,6 +52,8 @@ public:
     const wgpu::BindGroup CommonBindGroup() const { return _commonBindGroup; }
     const wgpu::BindGroupLayout CommonBindGroupLayout() const { return _commonBGLayout; }
     const PBRPass& PBRRenderPass() const { return *_pbrPass; }
+    const wgpu::TextureFormat SwapChainFormat() const { return _swapChainFormat; }
+    const wgpu::SwapChain& SwapChain() const { return _swapChain; }
 
     struct PointLight
     {
@@ -64,11 +67,11 @@ private:
 
     void SetupRenderTarget();
     void CreatePipelineAndBuffers();
-    void SetupHDRPipeline();
     wgpu::Texture CreateTexture(const tinygltf::Image& image, const std::vector<uint8_t>& data, uint32_t mipLevelCount, const char* label = nullptr);
     bool SetupImGui();
 
     std::unique_ptr<PBRPass> _pbrPass;
+    std::unique_ptr<HDRPass> _hdrPass;
 
     wgpu::Adapter _adapter;
     wgpu::Instance _instance;
@@ -78,21 +81,17 @@ private:
     wgpu::SwapChain _swapChain;
     wgpu::Texture _msaaTarget;
     wgpu::TextureView _msaaView;
-    wgpu::Sampler _hdrSampler;
     wgpu::Texture _hdrTarget;
     wgpu::TextureView _hdrView;
     wgpu::Texture _depthTexture;
     wgpu::TextureView _depthTextureView;
 
-    wgpu::RenderPipeline _pipelineHDR;
     wgpu::Buffer _commonBuf;
     wgpu::RenderPassDepthStencilAttachment _depthStencilAttachment;
 
     wgpu::BindGroupLayout _commonBGLayout;
-    wgpu::BindGroupLayout _hdrBindGroupLayout;
 
     wgpu::BindGroup _commonBindGroup;
-    wgpu::BindGroup _hdrBindGroup;
 
     int32_t _width = 1280;
     int32_t _height = 720;
