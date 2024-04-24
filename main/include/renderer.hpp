@@ -16,6 +16,7 @@ constexpr uint32_t MAX_POINT_LIGHTS{ 4 };
 class PBRPass;
 class HDRPass;
 class ImGuiPass;
+class TextureLoader;
 
 class Renderer
 {
@@ -41,7 +42,7 @@ public:
     Camera& GetCamera() { return _camera; }
     Transform& GetCameraTransform() { return _cameraTransform; }
     wgpu::Buffer CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage, const char* label);
-    wgpu::ShaderModule CreateShader(const std::string& path, const char* label = nullptr);
+    wgpu::ShaderModule CreateShader(const std::string& path, const char* label = nullptr) const;
     const wgpu::Device& Device() const { return _device; }
     const wgpu::Queue& Queue() const { return _queue; }
     const wgpu::TextureView HDRView() const { return _hdrView; }
@@ -55,6 +56,7 @@ public:
     const wgpu::TextureFormat SwapChainFormat() const { return _swapChainFormat; }
     const wgpu::SwapChain& SwapChain() const { return _swapChain; }
     GLFWwindow* Window() const { return _window; }
+    const TextureLoader& GetTextureLoader() const { return *_textureLoader; }
 
     struct PointLight
     {
@@ -64,15 +66,14 @@ public:
     };
 
 private:
-    friend Mesh;
-
     void SetupRenderTarget();
     void CreatePipelineAndBuffers();
-    wgpu::Texture CreateTexture(const tinygltf::Image& image, const std::vector<uint8_t>& data, uint32_t mipLevelCount, const char* label = nullptr);
 
     std::unique_ptr<PBRPass> _pbrPass;
     std::unique_ptr<HDRPass> _hdrPass;
     std::unique_ptr<ImGuiPass> _imGuiPass;
+
+    std::unique_ptr<TextureLoader> _textureLoader;
 
     wgpu::Adapter _adapter;
     wgpu::Instance _instance;

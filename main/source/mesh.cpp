@@ -7,6 +7,7 @@
 #include "renderer.hpp"
 #include "graphics/pbr_pass.hpp"
 #include <utils.hpp>
+#include "texture_loader.hpp"   
 
 uint32_t CalculateStride(const tinygltf::Accessor& accessor)
 {
@@ -219,7 +220,7 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     assert(positions.size() == uvs.size() && "Vertex attributes don't match in length");
 
     for(size_t i = 0; i < positions.size(); ++i)  
-    {  
+    {   
         vertices.emplace_back(positions[i], normals.empty() ? glm::vec3{ 0.0f } : normals[i], glm::vec3{ 0.0f }, glm::vec3{ 0.0f }, uvs[i]);
     }
 
@@ -258,22 +259,22 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
 
     const auto& albedoImage = model.images[model.textures[albedoIndex].source];
     const uint32_t mipLevelCount = bitWidth(std::max(albedoImage.width, albedoImage.height));
-    mesh.albedoTexture = renderer.CreateTexture(albedoImage, albedoImage.image, mipLevelCount, albedoImage.name.c_str());
+    mesh.albedoTexture = renderer.GetTextureLoader().LoadTexture(albedoImage.image, albedoImage.width, albedoImage.height, wgpu::TextureFormat::BGRA8Unorm, mipLevelCount, albedoImage.name.c_str());
 
     const auto& normalImage = model.images[model.textures[normalIndex].source];
-    mesh.normalTexture = renderer.CreateTexture(normalImage, normalImage.image, 1, normalImage.name.c_str());
+    mesh.normalTexture = renderer.GetTextureLoader().LoadTexture(normalImage.image, normalImage.width, normalImage.height, wgpu::TextureFormat::BGRA8Unorm, mipLevelCount, normalImage.name.c_str());
 
     const auto& metallicImage = model.images[model.textures[metallicIndex].source];
-    mesh.metallicTexture = renderer.CreateTexture(metallicImage, metallicImage.image, 1, metallicImage.name.c_str());
+    mesh.metallicTexture = renderer.GetTextureLoader().LoadTexture(metallicImage.image, metallicImage.width, metallicImage.height, wgpu::TextureFormat::BGRA8Unorm, mipLevelCount, metallicImage.name.c_str());
 
     const auto& roughnessImage = model.images[model.textures[roughnessIndex].source];
-    mesh.roughnessTexture = renderer.CreateTexture(roughnessImage, roughnessImage.image, 1, roughnessImage.name.c_str());
+    mesh.roughnessTexture = renderer.GetTextureLoader().LoadTexture(roughnessImage.image, roughnessImage.width, roughnessImage.height, wgpu::TextureFormat::BGRA8Unorm, mipLevelCount, roughnessImage.name.c_str());
 
     const auto& aoImage = model.images[model.textures[aoIndex].source];
-    mesh.aoTexture = renderer.CreateTexture(aoImage, aoImage.image, 1, aoImage.name.c_str());
+    mesh.aoTexture = renderer.GetTextureLoader().LoadTexture(aoImage.image, aoImage.width, aoImage.height, wgpu::TextureFormat::BGRA8Unorm, mipLevelCount, aoImage.name.c_str());
 
     const auto& emissiveImage = model.images[model.textures[emissiveIndex].source];
-    mesh.emissiveTexture = renderer.CreateTexture(emissiveImage, emissiveImage.image, mipLevelCount, emissiveImage.name.c_str());
+    mesh.emissiveTexture = renderer.GetTextureLoader().LoadTexture(emissiveImage.image, emissiveImage.width, emissiveImage.height, wgpu::TextureFormat::BGRA8Unorm, mipLevelCount, emissiveImage.name.c_str());
 
 
     wgpu::TextureViewDescriptor texViewDesc{};
@@ -286,9 +287,6 @@ std::optional<Mesh> Mesh::CreateMesh(const std::string& path, Renderer& renderer
     texViewDesc.aspect = wgpu::TextureAspect::All;
     mesh.albedoTextureView = mesh.albedoTexture.CreateView(&texViewDesc);
     mesh.emissiveTextureView = mesh.emissiveTexture.CreateView(&texViewDesc);
-
-    texViewDesc.mipLevelCount = 1;
-
     mesh.normalTextureView = mesh.normalTexture.CreateView(&texViewDesc);
     mesh.metallicTextureView = mesh.metallicTexture.CreateView(&texViewDesc);
     mesh.roughnessTextureView = mesh.roughnessTexture.CreateView(&texViewDesc);
