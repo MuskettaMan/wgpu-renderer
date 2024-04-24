@@ -112,6 +112,18 @@ EM_BOOL em_render(double time, void* userData)
             light.color = glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f };
             light.position = transform.translation;
         }
+
+        auto lightView = g_registry.view<Renderer::PointLight>();
+        auto transformView = g_registry.view<Transform>();
+        (lightView[*(lightView.begin() + 0)]).color = glm::vec4{ 1.0f, 0.0f, 0.0f, 20.0f };
+        (lightView[*(lightView.begin() + 1)]).color = glm::vec4{ 0.0f, 1.0f, 0.0f, 20.0f };
+        (lightView[*(lightView.begin() + 2)]).color = glm::vec4{ 0.0f, 0.75f, 1.0f, 20.0f };
+        (lightView[*(lightView.begin() + 3)]).color = glm::vec4{ 1.0f, 0.0f, 1.0f, 20.0f };
+
+        (transformView[*(transformView.begin() + 0)]).translation = glm::vec3{ 1.5f, 0.0f, 2.0f };
+        (transformView[*(transformView.begin() + 1)]).translation = glm::vec3{ -1.5f, 0.0f, 2.0f };
+        (transformView[*(transformView.begin() + 2)]).translation = glm::vec3{ 1.0f, 2.0f, 1.0f };
+        (transformView[*(transformView.begin() + 3)]).translation = glm::vec3{ -1.0f, 2.0f, 1.0f };
     }
     else if(!initialized)
     {

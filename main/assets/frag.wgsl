@@ -129,7 +129,7 @@ fn main(in: VertexOut) -> @location(0) vec4<f32> {
     let f0 = mix(vec3<f32>(0.04), albedo, metallic);
 
     var Lo = vec3<f32>(0.0);
-    for(var i: i32 = 0; i < 2; i++) 
+    for(var i: i32 = 0; i < 4; i++) 
     {
         let L = normalize(u_common.pointLights[i].position - in.vWorldPos);
         let H = normalize(V + L);
@@ -142,9 +142,9 @@ fn main(in: VertexOut) -> @location(0) vec4<f32> {
         let attenuation = 1.0 / (distance * distance);
         let radiance = u_common.pointLights[i].color.rgb * attenuation * u_common.pointLights[i].color.a;
 
-        let D = D_GGX(N, H, roughness); // double check
-        let G = G_Smith(N, V, L, roughness);//V_SmithGGXCorrelatedFast(NoV, NoL, roughness); // double check
-        let F = F_Schlick(HoV, f0); // double check
+        let D = D_GGX(N, H, roughness);
+        let G = G_Smith(N, V, L, roughness);
+        let F = F_Schlick(HoV, f0);
 
         let kS = F;
         var kD = (vec3<f32>(1.0) - kS);

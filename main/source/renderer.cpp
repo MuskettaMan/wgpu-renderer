@@ -283,7 +283,7 @@ void Renderer::SetupRenderTarget()
     hdrDesc.sampleCount = 1;
     hdrDesc.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding;
     _hdrTarget = _device.CreateTexture(&hdrDesc);
-    _hdrView = _hdrTarget.CreateView(); 
+    _hdrView = _hdrTarget.CreateView();  
 
     wgpu::TextureDescriptor depthTextureDesc{};
     depthTextureDesc.label = "Depth texture";
