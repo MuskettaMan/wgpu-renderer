@@ -93,6 +93,7 @@ EM_BOOL em_render(double time, void* userData)
             transform.translation = glm::vec3{ i, 0.0f, 0.0f } * transform.scale;
 
             auto optMesh = Mesh::CreateMesh("assets/models/DamagedHelmet.gltf", *g_renderer);
+
             if(!optMesh)
             {
                 std::cout << "Failed getting mesh" << std::endl;

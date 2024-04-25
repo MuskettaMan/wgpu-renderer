@@ -156,7 +156,7 @@ void PBRPass::Render(const wgpu::CommandEncoder& encoder, const wgpu::TextureVie
     wgpu::RenderPassColorAttachment colorDesc{};
     colorDesc.view = renderTarget;
     colorDesc.resolveTarget = resolveTarget ? *resolveTarget : nullptr;
-    colorDesc.loadOp = wgpu::LoadOp::Clear;
+    colorDesc.loadOp = wgpu::LoadOp::Load;
     colorDesc.storeOp = wgpu::StoreOp::Discard; // TODO: Review difference with store.
     colorDesc.clearValue.r = 0.3f;
     colorDesc.clearValue.g = 0.3f;

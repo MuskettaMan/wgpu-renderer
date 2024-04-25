@@ -12,6 +12,7 @@
 #include "graphics/pbr_pass.hpp"
 #include <graphics/hdr_pass.hpp>
 #include <graphics/imgui_pass.hpp>
+#include <graphics/skybox_pass.hpp>
 #include "texture_loader.hpp"
 
 Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t width, int32_t height) :
@@ -58,6 +59,7 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
     _pbrPass = std::make_unique<PBRPass>(*this);
     _hdrPass = std::make_unique<HDRPass>(*this);
     _imGuiPass = std::make_unique<ImGuiPass>(*this);
+    _skyboxPass = std::make_unique<SkyboxPass>(*this);
 
     _textureLoader = std::make_unique<TextureLoader>(*this);
 }
@@ -83,7 +85,8 @@ void Renderer::Render() const
     wgpu::CommandEncoder encoder = _device.CreateCommandEncoder(&ceDesc);
     wgpu::TextureView backBufView = _swapChain.GetCurrentTextureView();
 
-    _pbrPass->Render(encoder, _msaaView, std::make_shared<wgpu::TextureView>(_hdrView));
+    _skyboxPass->Render(encoder, _msaaView);
+    _pbrPass->Render(encoder, _msaaView, std::make_shared<wgpu::TextureView>(_hdrView)); // TODO: Seperate resolve into own pass.
     _hdrPass->Render(encoder, backBufView);
     _imGuiPass->Render(encoder, backBufView);
 
@@ -230,7 +233,7 @@ void Renderer::CreatePipelineAndBuffers()
     _commonBindGroup = _device.CreateBindGroup(&bgDesc); 
 }
 
-wgpu::Buffer Renderer::CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage, const char* label)
+wgpu::Buffer Renderer::CreateBuffer(const void* data, unsigned long size, wgpu::BufferUsage usage, const char* label) const
 {
     wgpu::BufferDescriptor desc{};
     desc.label = label;
