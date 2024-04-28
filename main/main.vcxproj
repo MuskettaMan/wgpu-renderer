@@ -86,6 +86,7 @@
     </ClCompile>
     <ClCompile Include="source\graphics\hdri_conversion_pass.cpp" />
     <ClCompile Include="source\graphics\imgui_pass.cpp" />
+    <ClCompile Include="source\graphics\irradiance_pass.cpp" />
     <ClCompile Include="source\graphics\skybox_pass.cpp" />
     <ClCompile Include="source\texture_loader.cpp" />
     <ClCompile Include="source\graphics\hdr_pass.cpp" />
@@ -102,6 +103,7 @@
     <ClInclude Include="include\graphics\hdri_conversion_pass.hpp" />
     <ClInclude Include="include\graphics\hdr_pass.hpp" />
     <ClInclude Include="include\graphics\imgui_pass.hpp" />
+    <ClInclude Include="include\graphics\irradiance_pass.hpp" />
     <ClInclude Include="include\graphics\pbr_pass.hpp" />
     <ClInclude Include="include\graphics\render_pass.hpp" />
     <ClInclude Include="include\graphics\skybox_pass.hpp" />

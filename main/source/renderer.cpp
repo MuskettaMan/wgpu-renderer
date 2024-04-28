@@ -15,6 +15,7 @@
 #include <graphics/skybox_pass.hpp>
 #include <graphics/hdri_conversion_pass.hpp>
 #include "texture_loader.hpp"
+#include <graphics/irradiance_pass.hpp>
 
 Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t width, int32_t height) :
     _adapter(deviceResources.adapter),
@@ -53,6 +54,30 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
 
     _commonBuf = CreateBuffer(&_commonData, sizeof(_commonData), wgpu::BufferUsage::Uniform, "Common uniform");
 
+    wgpu::TextureDescriptor irradianceTextureDesc{};
+    irradianceTextureDesc.label = "Irradiance texture";
+    irradianceTextureDesc.dimension = wgpu::TextureDimension::e2D;
+    irradianceTextureDesc.size.width = _irradianceSize;
+    irradianceTextureDesc.size.height = _irradianceSize;
+    irradianceTextureDesc.size.depthOrArrayLayers = 6;
+    irradianceTextureDesc.sampleCount = 1;
+    irradianceTextureDesc.format = wgpu::TextureFormat::RGBA16Float;
+    irradianceTextureDesc.mipLevelCount = 1;
+    irradianceTextureDesc.usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::RenderAttachment;
+
+    _irradianceTexture = _device.CreateTexture(&irradianceTextureDesc);
+
+    wgpu::TextureViewDescriptor irradianceViewDesc{};
+    irradianceViewDesc.label = "Irradiance texture view";
+    irradianceViewDesc.dimension = wgpu::TextureViewDimension::Cube;
+    irradianceViewDesc.format = irradianceTextureDesc.format;
+    irradianceViewDesc.baseMipLevel = 0;
+    irradianceViewDesc.mipLevelCount = 1;
+    irradianceViewDesc.baseArrayLayer = 0;
+    irradianceViewDesc.arrayLayerCount = 6;
+    irradianceViewDesc.aspect = wgpu::TextureAspect::All;
+
+    _irradianceView = _irradianceTexture.CreateView(&irradianceViewDesc);
 
     CreatePipelineAndBuffers();
     Resize(_width, _height);
@@ -62,6 +87,7 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
     _imGuiPass = std::make_unique<ImGuiPass>(*this);
     _skyboxPass = std::make_unique<SkyboxPass>(*this);
     HDRIConversionPass hdriConversionPass{ *this };
+    IrradiancePass irradiancePass{ *this, _skyboxPass->SkyboxView() };
 
     _textureLoader = std::make_unique<TextureLoader>(*this); 
 
@@ -74,10 +100,35 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
         for(uint32_t i = 0; i < 6; ++i)
         {
             hdriConversionPass.SetFace(i);
-            hdriConversionPass.Render(encoder, _skyboxPass->SkyboxView(i));
+            hdriConversionPass.Render(encoder, _skyboxPass->SkyboxView(i)); 
         }
-         
+        
         wgpu::CommandBuffer commands = encoder.Finish(nullptr);
+
+        _queue.Submit(1, &commands);
+    }
+    {
+        wgpu::CommandEncoderDescriptor ceDesc;
+        ceDesc.label = "Command encoder";
+
+        wgpu::CommandEncoder encoder = _device.CreateCommandEncoder(&ceDesc);
+
+        for (uint32_t i = 0; i < 6; ++i)
+        {
+            wgpu::TextureViewDescriptor viewDesc{};
+            viewDesc.dimension = wgpu::TextureViewDimension::e2D;
+            viewDesc.baseMipLevel = 0;
+            viewDesc.mipLevelCount = 1;
+            viewDesc.baseArrayLayer = i;
+            viewDesc.arrayLayerCount = 1;
+
+            wgpu::TextureView faceView = _irradianceTexture.CreateView(&viewDesc);
+
+            irradiancePass.SetFace(i);
+            irradiancePass.Render(encoder, faceView);
+        }
+
+        wgpu::CommandBuffer commands = encoder.Finish(nullptr); 
 
         _queue.Submit(1, &commands);
     }
@@ -225,11 +276,15 @@ void Renderer::SetupRenderTarget()
 
 void Renderer::CreatePipelineAndBuffers()
 {
-    std::array<wgpu::BindGroupLayoutEntry, 1> bgLayoutEntry{};
+    std::array<wgpu::BindGroupLayoutEntry, 2> bgLayoutEntry{};
     bgLayoutEntry[0].binding = 0;
     bgLayoutEntry[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
     bgLayoutEntry[0].buffer.type = wgpu::BufferBindingType::Uniform;
     bgLayoutEntry[0].buffer.minBindingSize = sizeof(_commonData);
+    bgLayoutEntry[1].binding = 1;
+    bgLayoutEntry[1].visibility = wgpu::ShaderStage::Fragment;
+    bgLayoutEntry[1].texture.sampleType = wgpu::TextureSampleType::Float;
+    bgLayoutEntry[1].texture.viewDimension = wgpu::TextureViewDimension::Cube;
 
     wgpu::BindGroupLayoutDescriptor bgLayoutDesc{};
     bgLayoutDesc.label = "Common binding group layout";
@@ -237,12 +292,15 @@ void Renderer::CreatePipelineAndBuffers()
     bgLayoutDesc.entries = bgLayoutEntry.data();
     _commonBGLayout = _device.CreateBindGroupLayout(&bgLayoutDesc);
 
-    std::array<wgpu::BindGroupEntry, 1> bgEntry{};
+    std::array<wgpu::BindGroupEntry, 2> bgEntry{};
     assert(bgLayoutEntry.size() == bgEntry.size() && "Bindgroup entry descriptions don't match their sizes");
 
     bgEntry[0].binding = 0;
     bgEntry[0].buffer = _commonBuf;
     bgEntry[0].size = sizeof(_commonData);
+
+    bgEntry[1].binding = 1;
+    bgEntry[1].textureView = _irradianceView;
      
     wgpu::BindGroupDescriptor bgDesc{};
     bgDesc.label = "Common bind group";

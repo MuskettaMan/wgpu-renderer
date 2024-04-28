@@ -50,7 +50,7 @@ fn vs_main(input: VertexIn) -> VertexOut
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32>
 {
-    var color = textureSample(skyboxMap, cubemapSampler, in.vUv).rgb;
+    var color = pow(textureSample(skyboxMap, cubemapSampler, in.vUv).rgb, vec3<f32>(2.2));
     color = vec3<f32>(1.0) - exp(-color * u_instance.exposure);
 
     return vec4<f32>(color, 1.0);

@@ -43,6 +43,7 @@ struct Material
 }
 
 @group(0) @binding(0) var<uniform> u_common: Common;
+@group(0) @binding(1) var u_irradianceMap: texture_cube<f32>; 
 
 @group(2) @binding(0) var<uniform> u_material: Material;
 @group(2) @binding(1) var u_sampler: sampler;
@@ -110,6 +111,11 @@ fn F_Schlick(cosTheta: f32, f0: vec3<f32>) -> vec3<f32>
     return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+fn F_SchlickRoughness(cosTheta: f32, f0: vec3<f32>, roughness: f32) -> vec3<f32>
+{
+    return f0 + (max(vec3<f32>(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
 @fragment
 fn main(in: VertexOut) -> @location(0) vec4<f32> {
     let albedoSample = pow(textureSample(u_albedo, u_sampler, in.vUv).rgb, vec3<f32>(2.2));
@@ -129,7 +135,7 @@ fn main(in: VertexOut) -> @location(0) vec4<f32> {
     let f0 = mix(vec3<f32>(0.04), albedo, metallic);
 
     var Lo = vec3<f32>(0.0);
-    for(var i: i32 = 0; i < 4; i++) 
+    for(var i: i32 = 0; i < 0; i++) 
     {
         let L = normalize(u_common.pointLights[i].position - in.vWorldPos);
         let H = normalize(V + L);
@@ -158,7 +164,15 @@ fn main(in: VertexOut) -> @location(0) vec4<f32> {
         Lo += (kD * albedo / PI + specular) * radiance * NoL;
     }
 
-    let ambient = vec3<f32>(0.03) * albedo * ao;
+    //let ambient = vec3<f32>(0.03) * albedo * ao;
+
+    let kS = F_SchlickRoughness(max(dot(N, V), 0.0), f0, roughness);
+    let kD = 1.0 - kS;
+    let irradiance = textureSample(u_irradianceMap, u_sampler, N).rgb;
+    let diffuse = irradiance * albedo;
+    let ambient = (kD * diffuse) * ao;
+    
+    
     var color = ambient + Lo + emissive;
 
     // Gamma correct.

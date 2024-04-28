@@ -92,6 +92,8 @@ private:
     wgpu::TextureView _hdrView;
     wgpu::Texture _depthTexture;
     wgpu::TextureView _depthTextureView;
+    wgpu::Texture _irradianceTexture;
+    wgpu::TextureView _irradianceView;
 
     wgpu::Buffer _commonBuf;
     wgpu::RenderPassDepthStencilAttachment _depthStencilAttachment;
@@ -102,6 +104,8 @@ private:
 
     int32_t _width = 1280;
     int32_t _height = 720;
+
+    uint32_t _irradianceSize{ 32 };
 
     wgpu::TextureFormat _swapChainFormat{ wgpu::TextureFormat::BGRA8Unorm };  
 

@@ -40,19 +40,19 @@ HDRIConversionPass::HDRIConversionPass(Renderer& renderer) : RenderPass(renderer
 
     wgpu::RenderPipelineDescriptor renderPipelineDesc{};
     renderPipelineDesc.label = "HDRI to cubemap pipeline";
-    renderPipelineDesc.layout = _pipelineLayout;
+    renderPipelineDesc.layout = _pipelineLayout; 
     renderPipelineDesc.vertex.module = shader;
     renderPipelineDesc.vertex.entryPoint = "vs_main"; 
     wgpu::ColorTargetState colorTarget{};
     colorTarget.format = _renderFormat;
-    colorTarget.blend = nullptr;
+    colorTarget.blend = nullptr; 
     colorTarget.writeMask = wgpu::ColorWriteMask::All;
 
     wgpu::FragmentState fragmentState{};
     fragmentState.module = shader;
     fragmentState.entryPoint = "fs_main";
     fragmentState.targetCount = 1;
-    fragmentState.targets = &colorTarget;
+    fragmentState.targets = &colorTarget; 
 
     renderPipelineDesc.fragment = &fragmentState;
     renderPipelineDesc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
@@ -61,7 +61,7 @@ HDRIConversionPass::HDRIConversionPass(Renderer& renderer) : RenderPass(renderer
 
     _faceUniformBuffer = _renderer.CreateBuffer(&_faceUniformBuffer, _uniformStride * 6, wgpu::BufferUsage::Uniform, "HDRI to cubemap face uniform buffer");
 
-    _hdriData = stbi_loadf("assets/textures/symmetrical_garden_02_4k.hdr", &_hdrWidth, &_hdrHeight, &_hdrChannels, STBI_rgb_alpha);
+    _hdriData = stbi_loadf("assets/textures/wrestling_gym_4k.hdr", &_hdrWidth, &_hdrHeight, &_hdrChannels, STBI_rgb_alpha);
 
     if (!_hdriData)
     {

@@ -107,7 +107,7 @@ EM_BOOL em_render(double time, void* userData)
 
         }
 
-        for (int i = 0; i < MAX_POINT_LIGHTS; ++i)
+        /*for (int i = 0; i < MAX_POINT_LIGHTS; ++i)
         {
             entt::entity lightEntity = g_registry.create();
             Transform& transform = g_registry.emplace<Transform>(lightEntity);
@@ -128,7 +128,7 @@ EM_BOOL em_render(double time, void* userData)
         (transformView[*(transformView.begin() + 0)]).translation = glm::vec3{ 1.5f, 0.0f, 2.0f };
         (transformView[*(transformView.begin() + 1)]).translation = glm::vec3{ -1.5f, 0.0f, 2.0f };
         (transformView[*(transformView.begin() + 2)]).translation = glm::vec3{ 1.0f, 2.0f, 1.0f };
-        (transformView[*(transformView.begin() + 3)]).translation = glm::vec3{ -1.0f, 2.0f, 1.0f };
+        (transformView[*(transformView.begin() + 3)]).translation = glm::vec3{ -1.0f, 2.0f, 1.0f };*/
     }
     else if(!initialized)
     {
@@ -217,6 +217,27 @@ EM_BOOL em_render(double time, void* userData)
             ImGui::EndChild();
             
             ++i;
+        }
+    }
+    ImGui::End();
+
+    ImGui::Begin("transforms");
+    {
+        auto view = g_registry.view<Transform>(); 
+        for (entt::entity entity : view)
+        {
+            auto& transform = view.get<Transform>(entity);
+            std::string name = "Transform " + std::to_string(static_cast<uint32_t>(entity));
+            ImGui::BeginChild(name.c_str(), ImVec2(0, 80), true);
+            ImGui::Text("Transform %d", entity);
+            ImGui::DragFloat3("Translation", &transform.translation.x);
+            ImGui::DragFloat3("Scale", &transform.scale.x);
+            glm::vec3 euler = glm::degrees(glm::eulerAngles(transform.rotation));
+            if (ImGui::DragFloat3("Rotation", &euler.x))
+            {
+                transform.rotation = glm::quat{ glm::radians(euler) };
+            }
+            ImGui::EndChild();
         }
     }
     ImGui::End();
