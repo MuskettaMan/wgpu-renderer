@@ -157,15 +157,15 @@ SkyboxPass::SkyboxPass(Renderer& renderer) : RenderPass(renderer, wgpu::TextureF
     wgpu::TextureDescriptor skyboxTextureDesc{};
     skyboxTextureDesc.label = "Skybox texture";
     skyboxTextureDesc.dimension = wgpu::TextureDimension::e2D;
-    skyboxTextureDesc.size = { 512, 512, 6 };
-    skyboxTextureDesc.format = wgpu::TextureFormat::RGBA8Unorm;
+    skyboxTextureDesc.size = { 2048, 2048, 6 };
+    skyboxTextureDesc.format = wgpu::TextureFormat::RGBA16Float;
     skyboxTextureDesc.mipLevelCount = 1;
     skyboxTextureDesc.sampleCount = 1;
     skyboxTextureDesc.usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding;
 
     wgpu::TextureViewDescriptor skyboxViewDesc{};
     skyboxViewDesc.dimension = wgpu::TextureViewDimension::Cube;
-    skyboxViewDesc.format = wgpu::TextureFormat::RGBA8Unorm;
+    skyboxViewDesc.format = wgpu::TextureFormat::RGBA16Float;
     skyboxViewDesc.baseArrayLayer = 0;
     skyboxViewDesc.arrayLayerCount = 6;
     skyboxViewDesc.baseMipLevel = 0;

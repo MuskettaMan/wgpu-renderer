@@ -3,7 +3,7 @@
 #include "renderer.hpp"
 #include <utils.hpp>
 
-HDRIConversionPass::HDRIConversionPass(Renderer& renderer) : RenderPass(renderer, wgpu::TextureFormat::RGBA8Unorm), _uniformStride(ceilToNextMultiple(sizeof(_currentFace), 256))
+HDRIConversionPass::HDRIConversionPass(Renderer& renderer) : RenderPass(renderer, wgpu::TextureFormat::RGBA16Float), _uniformStride(ceilToNextMultiple(sizeof(_currentFace), 256))
 {
     std::array<wgpu::BindGroupLayoutEntry, 3> bgLayoutEntries{};
     bgLayoutEntries[0].binding = 0;
@@ -110,10 +110,10 @@ HDRIConversionPass::HDRIConversionPass(Renderer& renderer) : RenderPass(renderer
     hdrViewDesc.dimension = wgpu::TextureViewDimension::e2D;
     hdrViewDesc.format = hdrTextureDesc.format;
     hdrViewDesc.baseMipLevel = 0;
-    hdrViewDesc.mipLevelCount = 1;
+    hdrViewDesc.mipLevelCount = 1; 
     hdrViewDesc.baseArrayLayer = 0;
     hdrViewDesc.arrayLayerCount = 1;
-    hdrViewDesc.aspect = wgpu::TextureAspect::All;
+    hdrViewDesc.aspect = wgpu::TextureAspect::All; 
 
     _hdrView = _hdrTexture.CreateView(&hdrViewDesc);
 
@@ -160,7 +160,7 @@ void HDRIConversionPass::Render(const wgpu::CommandEncoder& encoder, const wgpu:
     colorDescTonemap.resolveTarget = nullptr;
 
     wgpu::RenderPassDescriptor hdrPassDesc{};
-    hdrPassDesc.label = "HDR render pass";
+    hdrPassDesc.label = "HDR to cubemap render pass";
     hdrPassDesc.colorAttachmentCount = 1;
     hdrPassDesc.colorAttachments = &colorDescTonemap;
     hdrPassDesc.depthStencilAttachment = nullptr;
