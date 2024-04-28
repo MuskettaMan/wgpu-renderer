@@ -184,7 +184,7 @@ void PBRPass::Render(const wgpu::CommandEncoder& encoder, const wgpu::TextureVie
         instance.transInvModel = glm::mat4{ glm::mat3{ glm::transpose(glm::inverse(instance.model)) } };
 
         uint32_t dynamicOffset{ i * _uniformStride };
-        _renderer.Queue().WriteBuffer(_instanceBuffer, dynamicOffset, &instance, sizeof(instance));
+        _renderer.Queue().WriteBuffer(_instanceBuffer, dynamicOffset, &instance, sizeof(instance)); // TODO: write entire buffer once.
 
         pass.SetVertexBuffer(0, mesh.vertBuf, 0, wgpu::kWholeSize);
         pass.SetIndexBuffer(mesh.indexBuf, mesh.indexFormat, 0, wgpu::kWholeSize);

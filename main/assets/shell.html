@@ -96,6 +96,7 @@
 <body>
     <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><strong>emscripten</strong></center></figure>
     <div class="emscripten" id="status">Downloading...</div>
+    <div class="emscripten" id="support">Browser does not support WebGPU!</div>
     <div class="emscripten">
         <progress value="0" max="100" id="progress" hidden=1></progress>
     </div>
@@ -118,6 +119,7 @@
         var statusElement = document.getElementById('status');
         var progressElement = document.getElementById('progress');
         var spinnerElement = document.getElementById('spinner');
+        var supportElement = document.getElementById('support');
 
         var Module = {
             print: (function () {
@@ -183,6 +185,30 @@
                 if (text) console.error('[post-exception status] ' + text);
             };
         };
+
+        async function isWebGPUSupported() {
+            if (!('gpu' in navigator)) {
+                return false; // WebGPU not supported
+            }
+
+            try {
+                await navigator.gpu.requestAdapter();
+                return true; // WebGPU is supported
+            } catch (error) {
+                return false; // WebGPU not supported
+            }
+        }
+
+        // Usage
+        isWebGPUSupported().then(supported => {
+            if(supported) {
+                supportElement.style.display = 'none';
+            } else {
+                supportElement.style.display = 'block';
+            }
+        });
+
+        
     </script>
     {{{ SCRIPT }}}
 </body>

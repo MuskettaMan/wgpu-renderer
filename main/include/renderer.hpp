@@ -18,6 +18,7 @@ class HDRPass;
 class ImGuiPass;
 class SkyboxPass;
 class TextureLoader;
+class HDRIConversionPass;
 
 class Renderer
 {

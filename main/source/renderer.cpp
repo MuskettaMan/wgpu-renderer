@@ -13,6 +13,7 @@
 #include <graphics/hdr_pass.hpp>
 #include <graphics/imgui_pass.hpp>
 #include <graphics/skybox_pass.hpp>
+#include <graphics/hdri_conversion_pass.hpp>
 #include "texture_loader.hpp"
 
 Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t width, int32_t height) :
@@ -46,7 +47,7 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
 
     _commonData.pointLights[0] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.5f, 0.0f, 0.5f   }, 1.0f };
     _commonData.pointLights[1] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.5f, 0.25f, -0.5f }, 1.0f };
-    _commonData.pointLights[2] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { -0.5f, 0.5f, -0.5f }, 1.0f };
+    _commonData.pointLights[2] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { -0.5f, 0.5f, -0.5f }, 1.0f }; 
     _commonData.pointLights[3] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { -0.5f, 1.0f, 0.5f  }, 1.0f };
     _commonData.normalMapStrength = 0.8f;
 
@@ -55,13 +56,31 @@ Renderer::Renderer(DeviceResources deviceResources, GLFWwindow* window, int32_t 
 
     CreatePipelineAndBuffers();
     Resize(_width, _height);
-
+     
     _pbrPass = std::make_unique<PBRPass>(*this);
     _hdrPass = std::make_unique<HDRPass>(*this);
     _imGuiPass = std::make_unique<ImGuiPass>(*this);
     _skyboxPass = std::make_unique<SkyboxPass>(*this);
+    HDRIConversionPass hdriConversionPass{ *this };
 
-    _textureLoader = std::make_unique<TextureLoader>(*this);
+    _textureLoader = std::make_unique<TextureLoader>(*this); 
+
+    {
+        wgpu::CommandEncoderDescriptor ceDesc;
+        ceDesc.label = "Command encoder";
+
+        wgpu::CommandEncoder encoder = _device.CreateCommandEncoder(&ceDesc);
+
+        for(uint32_t i = 0; i < 6; ++i)
+        {
+            hdriConversionPass.SetFace(i);
+            hdriConversionPass.Render(encoder, _skyboxPass->SkyboxView(i));
+        }
+         
+        wgpu::CommandBuffer commands = encoder.Finish(nullptr);
+
+        _queue.Submit(1, &commands);
+    }
 }
 
 Renderer::~Renderer() = default;

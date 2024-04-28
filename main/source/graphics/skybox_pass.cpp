@@ -80,9 +80,9 @@ SkyboxPass::SkyboxPass(Renderer& renderer) : RenderPass(renderer, wgpu::TextureF
     bindGroupLayoutDesc.entryCount = skyboxBGLayoutEntries.size();
     bindGroupLayoutDesc.entries = skyboxBGLayoutEntries.data();
 
-    _skyboxBindGroupLayout = _renderer.Device().CreateBindGroupLayout(&bindGroupLayoutDesc);
+    _skyboxBGL = _renderer.Device().CreateBindGroupLayout(&bindGroupLayoutDesc);
 
-    std::array<wgpu::BindGroupLayout, 2> bindGroupLayouts{ _renderer.CommonBindGroupLayout(), _skyboxBindGroupLayout };
+    std::array<wgpu::BindGroupLayout, 2> bindGroupLayouts{ _renderer.CommonBindGroupLayout(), _skyboxBGL };
 
     wgpu::PipelineLayoutDescriptor pipelineLayoutDesc{};
     pipelineLayoutDesc.bindGroupLayoutCount = bindGroupLayouts.size();
@@ -153,11 +153,11 @@ SkyboxPass::SkyboxPass(Renderer& renderer) : RenderPass(renderer, wgpu::TextureF
     samplerDesc.mipmapFilter = wgpu::MipmapFilterMode::Linear;
 
     _skyboxSampler = _renderer.Device().CreateSampler(&samplerDesc);
-
+     
     wgpu::TextureDescriptor skyboxTextureDesc{};
     skyboxTextureDesc.label = "Skybox texture";
     skyboxTextureDesc.dimension = wgpu::TextureDimension::e2D;
-    skyboxTextureDesc.size = { 1, 1, 6 };
+    skyboxTextureDesc.size = { 512, 512, 6 };
     skyboxTextureDesc.format = wgpu::TextureFormat::RGBA8Unorm;
     skyboxTextureDesc.mipLevelCount = 1;
     skyboxTextureDesc.sampleCount = 1;
@@ -185,12 +185,11 @@ SkyboxPass::SkyboxPass(Renderer& renderer) : RenderPass(renderer, wgpu::TextureF
     bgEntries[2].textureView = _skyboxView;
 
     wgpu::BindGroupDescriptor bindGroupDesc{};
-    bindGroupDesc.layout = _skyboxBindGroupLayout;
+    bindGroupDesc.layout = _skyboxBGL;
     bindGroupDesc.entryCount = bgEntries.size();
     bindGroupDesc.entries = bgEntries.data();
 
-
-    _skyboxBindGroup = _renderer.Device().CreateBindGroup(&bindGroupDesc);
+    _skyboxBindGroup = _renderer.Device().CreateBindGroup(&bindGroupDesc); 
 }
 
 SkyboxPass::~SkyboxPass() = default;

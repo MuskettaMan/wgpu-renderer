@@ -23,7 +23,8 @@ struct VertexOutput
     @builtin(position) clipPosition: vec4<f32>,
 }
 
-@vertex fn vs_main(@builtin(vertex_index) vi: u32) -> VertexOutput
+@vertex 
+fn vs_main(@builtin(vertex_index) vi: u32) -> VertexOutput
 {
     var out: VertexOutput;
 

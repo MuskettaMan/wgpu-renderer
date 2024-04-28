@@ -6,7 +6,7 @@ struct VertexIn
 struct VertexOut 
 {
     @builtin(position) vPos: vec4<f32>,
-    @location(0) vUv: vec2<f32>,
+    @location(0) vUv: vec3<f32>,
 }
 
 struct Common 
@@ -40,7 +40,8 @@ fn vs_main(input: VertexIn) -> VertexOut
 {
     var out: VertexOut;
     let mvp = u_common.vp * u_instance.model;
-    out.vPos = mvp * vec4<f32>(input.aPos, 1.0);
+    out.vPos = (mvp * vec4<f32>(input.aPos, 1.0)).xyzw;
+    out.vUv = input.aPos;
 
     return out;
 }
@@ -48,7 +49,5 @@ fn vs_main(input: VertexIn) -> VertexOut
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32>
 {
-
-
-    return vec4<f32>(1.0f);
+    return pow(textureSample(skyboxMap, cubemapSampler, in.vUv), vec4<f32>(2.2));
 }
