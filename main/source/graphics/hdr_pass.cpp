@@ -8,7 +8,7 @@ HDRPass::HDRPass(Renderer& renderer) : RenderPass(renderer, renderer.SwapChainFo
     colorTargetHDR.format = _renderer.SwapChainFormat();
     colorTargetHDR.blend = nullptr;
 
-    wgpu::ShaderModule hdrShader = _renderer.CreateShader("assets/hdr.wgsl", "HDR Fragment shader");
+    wgpu::ShaderModule hdrShader = _renderer.CreateShader("assets/shaders/hdr.wgsl", "HDR Fragment shader");
     wgpu::FragmentState hdrFragment{};
     hdrFragment.module = hdrShader;
     hdrFragment.entryPoint = "fs_main";

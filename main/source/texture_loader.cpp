@@ -34,7 +34,7 @@ TextureLoader::TextureLoader(const Renderer& renderer) : _renderer(renderer)
     wgpu::ComputePipelineDescriptor computePipelineDesc{};
     computePipelineDesc.label = "Mip map generation";
     computePipelineDesc.compute.entryPoint = "main";
-    computePipelineDesc.compute.module = _renderer.CreateShader("assets/mip-comp.wgsl", "Mip map generation");
+    computePipelineDesc.compute.module = _renderer.CreateShader("assets/shaders/mip-comp.wgsl", "Mip map generation");
     computePipelineDesc.layout = bgPipelineLayout;
     _computePipeline = _renderer.Device().CreateComputePipeline(&computePipelineDesc);
 }

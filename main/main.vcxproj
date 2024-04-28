@@ -113,8 +113,8 @@
     <ClInclude Include="include\utils.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\frag.wgsl" />
-    <None Include="assets\vertex.wgsl" />
+    <None Include="assets\shaders\frag.wgsl" />
+    <None Include="assets\shaders\vertex.wgsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

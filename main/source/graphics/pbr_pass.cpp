@@ -8,8 +8,8 @@
 PBRPass::PBRPass(Renderer& renderer) : 
     RenderPass(renderer, wgpu::TextureFormat::RGBA16Float),
     _uniformStride(ceilToNextMultiple(sizeof(Instance), 256)),
-    _vertModule(_renderer.CreateShader("assets/vertex.wgsl", "Vertex shader")),
-    _fragModule(_renderer.CreateShader("assets/frag.wgsl", "Fragment shader"))
+    _vertModule(_renderer.CreateShader("assets/shaders/vertex.wgsl", "Vertex shader")),
+    _fragModule(_renderer.CreateShader("assets/shaders/frag.wgsl", "Fragment shader"))
 {
     _instanceBuffer = _renderer.CreateBuffer(nullptr, _uniformStride * MAX_INSTANCES, wgpu::BufferUsage::Uniform, "PBR instances buffer");
 

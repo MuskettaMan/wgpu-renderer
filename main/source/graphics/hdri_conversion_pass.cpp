@@ -36,7 +36,7 @@ HDRIConversionPass::HDRIConversionPass(Renderer& renderer) : RenderPass(renderer
      
     _pipelineLayout = _renderer.Device().CreatePipelineLayout(&bgPipelineLayoutDesc);
 
-    wgpu::ShaderModule shader = _renderer.CreateShader("assets/hdri-to-cubemap.wgsl", "HDRI to cubemap shader module");
+    wgpu::ShaderModule shader = _renderer.CreateShader("assets/shaders/hdri-to-cubemap.wgsl", "HDRI to cubemap shader module");
 
     wgpu::RenderPipelineDescriptor renderPipelineDesc{};
     renderPipelineDesc.label = "HDRI to cubemap pipeline";
@@ -61,7 +61,7 @@ HDRIConversionPass::HDRIConversionPass(Renderer& renderer) : RenderPass(renderer
 
     _faceUniformBuffer = _renderer.CreateBuffer(&_faceUniformBuffer, _uniformStride * 6, wgpu::BufferUsage::Uniform, "HDRI to cubemap face uniform buffer");
 
-    _hdriData = stbi_loadf("assets/symmetrical_garden_02_4k.hdr", &_hdrWidth, &_hdrHeight, &_hdrChannels, STBI_rgb_alpha);
+    _hdriData = stbi_loadf("assets/textures/symmetrical_garden_02_4k.hdr", &_hdrWidth, &_hdrHeight, &_hdrChannels, STBI_rgb_alpha);
 
     if (!_hdriData)
     {

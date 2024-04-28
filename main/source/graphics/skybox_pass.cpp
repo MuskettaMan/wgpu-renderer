@@ -40,7 +40,7 @@ constexpr glm::vec3 CUBE_VERTICES[] = {
     glm::vec3{  1.0f,  1.0f,  1.0f },
     glm::vec3{  1.0f,  1.0f,  1.0f },
     glm::vec3{ -1.0f,  1.0f,  1.0f },
-    glm::vec3{ -1.0f,  1.0f, -1.0f },
+    glm::vec3{ -1.0f,  1.0f, -1.0f }, 
 
     // -Y
     glm::vec3{ -1.0f, -1.0f, -1.0f },
@@ -48,16 +48,16 @@ constexpr glm::vec3 CUBE_VERTICES[] = {
     glm::vec3{  1.0f, -1.0f, -1.0f },
     glm::vec3{  1.0f, -1.0f, -1.0f },
     glm::vec3{ -1.0f, -1.0f,  1.0f },
-    glm::vec3{  1.0f, -1.0f,  1.0f },
+    glm::vec3{  1.0f, -1.0f,  1.0f }, 
 };
-
+ 
 SkyboxPass::SkyboxPass(Renderer& renderer) : RenderPass(renderer, wgpu::TextureFormat::RGBA16Float)
 {
-    _instance.model = glm::identity<glm::mat4>();
+    _instance.model = glm::identity<glm::mat4>(); 
 
     _vertexBuffer = _renderer.CreateBuffer(CUBE_VERTICES, sizeof(CUBE_VERTICES), wgpu::BufferUsage::Vertex, "Skybox vertex buffer");
     _instanceBuffer = _renderer.CreateBuffer(&_instance, sizeof(_instance), wgpu::BufferUsage::Uniform, "Skybox instance buffer");
-    _skyboxShader = _renderer.CreateShader("assets/skybox.wgsl", "Skybox shader");
+    _skyboxShader = _renderer.CreateShader("assets/shaders/skybox.wgsl", "Skybox shader");
 
     std::array<wgpu::BindGroupLayoutEntry, 3> skyboxBGLayoutEntries{};
     skyboxBGLayoutEntries[0].binding = 0;
