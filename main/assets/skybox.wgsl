@@ -27,6 +27,7 @@ struct Common
 struct Instance 
 {
     model: mat4x4f,
+    exposure: f32
 }
 
 @group(0) @binding(0) var<uniform> u_common: Common;
@@ -49,5 +50,8 @@ fn vs_main(input: VertexIn) -> VertexOut
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32>
 {
-    return pow(textureSample(skyboxMap, cubemapSampler, in.vUv), vec4<f32>(2.2));
+    var color = textureSample(skyboxMap, cubemapSampler, in.vUv).rgb;
+    color = vec3<f32>(1.0) - exp(-color * u_instance.exposure);
+    //color = pow(color, vec3<f32>(1.0 / 2.2));
+    return vec4<f32>(color, 1.0);
 }

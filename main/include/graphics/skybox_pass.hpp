@@ -10,12 +10,17 @@ public:
     struct Instance
     {
         glm::mat4 model;
+        float exposure{ 3.0f };
+        float padding[3];
     };
 
     SkyboxPass(Renderer& renderer);
     virtual ~SkyboxPass();
 
     virtual void Render(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& renderTarget, std::shared_ptr<const wgpu::TextureView> resolveTarget = nullptr) override;
+
+    void SetExposure(float exposure) { _instance.exposure = exposure; }
+    float GetExposure() const { return _instance.exposure; }
 
     const wgpu::TextureView& SkyboxView() const { return _skyboxView; }
     const wgpu::TextureView SkyboxView(uint32_t face) const 

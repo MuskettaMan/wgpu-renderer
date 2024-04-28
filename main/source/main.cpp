@@ -14,6 +14,8 @@
 #include <backends/imgui_impl_wgpu.h>
 #include <backends/imgui_impl_glfw.h>
 
+#include "graphics/skybox_pass.hpp"
+
 using namespace std::literals::chrono_literals;
 
 std::unique_ptr<Renderer> g_renderer;
@@ -196,6 +198,12 @@ EM_BOOL em_render(double time, void* userData)
 
     ImGui::Begin("Light");   
     {
+        float exposure = g_renderer->GetSkyboxPass().GetExposure();
+        if (ImGui::DragFloat("Exposure", &exposure, 0.01f, 0.0f, 10.0f))
+        {
+            g_renderer->GetSkyboxPass().SetExposure(exposure);
+        }
+
         auto view = g_registry.view<Renderer::PointLight, Transform>();
         uint32_t i = 0;
         for (entt::entity entity : view) 
@@ -212,6 +220,7 @@ EM_BOOL em_render(double time, void* userData)
         }
     }
     ImGui::End();
+
 
     ImGui::Render();
 

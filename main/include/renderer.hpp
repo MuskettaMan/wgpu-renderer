@@ -60,6 +60,8 @@ public:
     GLFWwindow* Window() const { return _window; }
     const TextureLoader& GetTextureLoader() const { return *_textureLoader; }
 
+    SkyboxPass& GetSkyboxPass() { return *_skyboxPass; }
+
     struct PointLight
     {
         glm::vec4 color;

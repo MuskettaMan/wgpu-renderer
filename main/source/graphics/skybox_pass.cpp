@@ -61,7 +61,7 @@ SkyboxPass::SkyboxPass(Renderer& renderer) : RenderPass(renderer, wgpu::TextureF
 
     std::array<wgpu::BindGroupLayoutEntry, 3> skyboxBGLayoutEntries{};
     skyboxBGLayoutEntries[0].binding = 0;
-    skyboxBGLayoutEntries[0].visibility = wgpu::ShaderStage::Vertex;
+    skyboxBGLayoutEntries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
     skyboxBGLayoutEntries[0].buffer.minBindingSize = sizeof(_instance);
     skyboxBGLayoutEntries[0].buffer.type = wgpu::BufferBindingType::Uniform;
     skyboxBGLayoutEntries[0].buffer.hasDynamicOffset = false;
